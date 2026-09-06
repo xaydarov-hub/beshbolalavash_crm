@@ -64,6 +64,17 @@ npm run build
 npm run preview
 ```
 
+## Render backend deploy
+
+Render Web Service sozlamalari:
+
+- Build Command: `npm install`
+- Start Command: `npm run server`
+- Health Check Path: `/api/health`
+
+Render server uchun `PORT` qiymatini o'zi beradi. Frontend Netlify'da bo'lsa,
+Netlify Environment variables ichida `VITE_API_URL` ga Render service URL'ini kiriting.
+
 ## Test ishlatish
 
 ```bash

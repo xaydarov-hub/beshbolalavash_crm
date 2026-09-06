@@ -6,7 +6,7 @@ import { JSONFile } from 'lowdb/node';
 import { uid, todayISO } from '../src/lib/utils.js';
 
 const app = express();
-const PORT = 4000;
+const PORT = Number(process.env.PORT) || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'beshbola-secret-2026';
 const dbFile = new JSONFile('./server/db.json');
 const db = new Low(dbFile, { users: [], branches: [], attendance: [], adjustments: [], sales: {}, leaveRequests: [], auditLog: [], notifications: [], evaluations: [], transfers: [] });
