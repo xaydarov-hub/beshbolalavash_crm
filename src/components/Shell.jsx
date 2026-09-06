@@ -11,7 +11,7 @@ export default function Shell({ session, notifCount, onLogout, children }) {
           {notifCount > 0 && (
             <span><span className="notif-dot" /> {notifCount} bildirishnoma</span>
           )}
-          <span>{ROLE_LABEL[session.role]} · <b style={{ color: "var(--crust)" }}>{session.name}</b></span>
+          <span className="who-session">{ROLE_LABEL[session.role]} · <b style={{ color: "var(--crust)" }}>{session.name}</b></span>
           <button className="btn btn-sm" onClick={onLogout}>Chiqish</button>
         </div>
       </div>

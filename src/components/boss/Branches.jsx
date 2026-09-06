@@ -27,7 +27,7 @@ export default function Branches({ state, persist, session }) {
 
   return (
     <div style={{ maxWidth: 480 }}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+      <div className="branch-create" style={{ display: "flex", gap: 8, marginBottom: 18 }}>
         <input className="input" placeholder="Yangi filial nomi" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="btn btn-primary" onClick={addBranch}>➕</button>
       </div>
