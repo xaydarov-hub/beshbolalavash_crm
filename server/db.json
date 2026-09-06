@@ -1,0 +1,209 @@
+{
+  "branches": [
+    {
+      "id": "branch-1",
+      "name": "Chilonzor filiali"
+    },
+    {
+      "id": "branch-2",
+      "name": "Yunusobod filiali"
+    },
+    {
+      "id": "branch-3",
+      "name": "Sergeli filiali"
+    },
+    {
+      "id": "qhcj8cg7",
+      "name": "sentr"
+    },
+    {
+      "id": "82kma80f",
+      "name": "qwfqew"
+    }
+  ],
+  "users": [
+    {
+      "id": "boss-1",
+      "role": "boss",
+      "name": "Besh Bola Lavash",
+      "phone": "beshbola.hr",
+      "year": "1122334411",
+      "branchId": null,
+      "position": "Direktor",
+      "salaryType": "oylik",
+      "rate": 0,
+      "hireDate": "2026-09-06",
+      "firstLogin": false
+    },
+    {
+      "id": "admin-1",
+      "role": "admin",
+      "name": "Filial Admini",
+      "phone": "admin.local",
+      "year": "2024",
+      "branchId": "branch-1",
+      "position": "Filial admini",
+      "salaryType": "oylik",
+      "rate": 3200000,
+      "hireDate": "2026-09-06",
+      "firstLogin": false
+    },
+    {
+      "id": "zx6727tj",
+      "role": "employee",
+      "name": "Xaydarov Torabek",
+      "phone": "956604409",
+      "year": "20009",
+      "branchId": "qhcj8cg7",
+      "position": "Filial admini",
+      "salaryType": "kunlik",
+      "rate": 155013,
+      "hireDate": "2026-09-06",
+      "firstLogin": true
+    }
+  ],
+  "attendance": [
+    {
+      "id": "wkp5klpe",
+      "employeeId": "employee-1",
+      "date": "2026-09-06",
+      "status": "keldi",
+      "checkIn": "08:15",
+      "checkOut": "17:30",
+      "late": true
+    },
+    {
+      "id": "8oop8cd5",
+      "employeeId": "admin-1",
+      "date": "2026-09-06",
+      "status": "keldi",
+      "checkIn": "22:00",
+      "checkOut": "10:00",
+      "late": true
+    }
+  ],
+  "adjustments": [],
+  "sales": {},
+  "leaveRequests": [],
+  "auditLog": [
+    {
+      "id": "dwa70ii1",
+      "at": "2026-09-06 14:18:13",
+      "actor": "Besh Bola Lavash",
+      "action": "Yangi xodim qo'shdi: Xaydarov Torabek."
+    },
+    {
+      "id": "629oy190",
+      "at": "2026-09-06 14:18:10",
+      "actor": "Besh Bola Lavash",
+      "action": "xaydarov torabekni tizimdan o'chirdi."
+    },
+    {
+      "id": "7m3u9maj",
+      "at": "2026-09-06 14:13:34",
+      "actor": "Besh Bola Lavash",
+      "action": "Yangi xodim qo'shdi: xaydarov torabek."
+    },
+    {
+      "id": "nh5pg5es",
+      "at": "2026-09-06 14:01:09",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"10:00 da ketgan\" deb belgiladi."
+    },
+    {
+      "id": "o88hogk7",
+      "at": "2026-09-06 14:01:03",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"22:00 da kelgan\" deb belgiladi."
+    },
+    {
+      "id": "5y52vk8l",
+      "at": "2026-09-06 14:01:02",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"10:00 da kelgan\" deb belgiladi."
+    },
+    {
+      "id": "qx5onozn",
+      "at": "2026-09-06 14:01:02",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"22:00 da kelgan\" deb belgiladi."
+    },
+    {
+      "id": "shvuq4wx",
+      "at": "2026-09-06 14:01:02",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"10:00 da kelgan\" deb belgiladi."
+    },
+    {
+      "id": "frwstr9a",
+      "at": "2026-09-06 14:01:02",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"22:00 da kelgan\" deb belgiladi."
+    },
+    {
+      "id": "area2vb0",
+      "at": "2026-09-06 14:01:02",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"10:00 da kelgan\" deb belgiladi."
+    },
+    {
+      "id": "bortvdy4",
+      "at": "2026-09-06 14:01:02",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"22:00 da kelgan\" deb belgiladi."
+    },
+    {
+      "id": "c304p3zl",
+      "at": "2026-09-06 14:00:59",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"10:00 da kelgan\" deb belgiladi."
+    },
+    {
+      "id": "h0gj94p6",
+      "at": "2026-09-06 14:00:50",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"kelgan\" deb belgiladi."
+    },
+    {
+      "id": "a4hdzxzl",
+      "at": "2026-09-06 14:00:47",
+      "actor": "Besh Bola Lavash",
+      "action": "Filial Adminini 2026-09-06 kuni \"ta'tilda\" deb belgiladi."
+    },
+    {
+      "id": "8bht3pj0",
+      "at": "2026-09-06 14:00:17",
+      "actor": "Besh Bola Lavash",
+      "action": "Yangi filial qo'shdi: qwfqew."
+    },
+    {
+      "id": "jd89qsuo",
+      "at": "2026-09-06 14:00:02",
+      "actor": "Besh Bola Lavash",
+      "action": "Yangi xodimni tizimdan o'chirdi."
+    },
+    {
+      "id": "jvg7izb6",
+      "at": "2026-09-06 13:57:54",
+      "actor": "Besh Bola Lavash",
+      "action": "Yangi filial qo'shdi: sentr."
+    },
+    {
+      "id": "paz3oi27",
+      "at": "06/09/2026, 13:51:07",
+      "actor": "System",
+      "action": "CRM serveri ishga tushdi."
+    }
+  ],
+  "notifications": [
+    {
+      "id": "do6d0jzg",
+      "forRole": "boss",
+      "text": "Sistema ishga tushdi. Boshqaruv tayyor.",
+      "at": "2026-09-06",
+      "read": false
+    }
+  ],
+  "evaluations": [],
+  "transfers": []
+}

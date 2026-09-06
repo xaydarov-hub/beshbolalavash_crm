@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function profile() { return get(/databases/$(database)/documents/organizations/main/users/$(request.auth.uid)).data; }
+    function isBoss() { return signedIn() && profile().role == 'boss'; }
+    function isAdmin() { return signedIn() && profile().role == 'admin'; }
+    function isOwnEmployee() { return signedIn() && profile().role == 'employee'; }
+    function inMyBranch(data) { return isAdmin() && data.branchId == profile().branchId; }
+
+    match /organizations/main/meta/{document} {
+      allow read: if signedIn();
+      allow create: if signedIn() && document == 'company' && !exists(/databases/$(database)/documents/organizations/main/meta/company);
+      allow update, delete: if isBoss();
+    }
+
+    match /organizations/main/branches/{branchId} {
+      allow read: if signedIn();
+      allow write: if isBoss();
+    }
+
+    match /organizations/main/users/{userId} {
+      allow get: if signedIn() && (userId == request.auth.uid || isBoss() || inMyBranch(resource.data));
+      allow list: if isBoss() || (isAdmin() && resource.data.branchId == profile().branchId);
+      // The first boss profile is created once during empty-company setup.
+      allow create: if signedIn() && userId == request.auth.uid && request.resource.data.role == 'boss' && !exists(/databases/$(database)/documents/organizations/main/meta/company);
+      allow update, delete: if isBoss()
+        || (signedIn() && userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']) && request.resource.data.mustChangePassword == false)
+        || (isAdmin() && resource.data.branchId == profile().branchId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['branchId']));
+    }
+
+    match /organizations/main/attendance/{recordId} {
+      allow read: if isBoss() || inMyBranch(resource.data) || (isOwnEmployee() && resource.data.employeeId == request.auth.uid);
+      allow create: if isBoss() || (isAdmin() && request.resource.data.branchId == profile().branchId);
+      allow update, delete: if isBoss() || inMyBranch(resource.data);
+    }
+
+    match /organizations/main/evaluations/{recordId} {
+      allow read: if isBoss() || inMyBranch(resource.data) || (isOwnEmployee() && resource.data.employeeId == request.auth.uid);
+      allow create: if isBoss() || (isAdmin() && request.resource.data.branchId == profile().branchId);
+      allow update, delete: if isBoss() || inMyBranch(resource.data);
+    }
+
+    match /organizations/main/leaveRequests/{recordId} {
+      allow read: if isBoss() || inMyBranch(resource.data) || (isOwnEmployee() && resource.data.employeeId == request.auth.uid);
+      allow create: if isOwnEmployee() && request.resource.data.employeeId == request.auth.uid;
+      allow update, delete: if isBoss();
+    }
+
+    match /organizations/main/adjustments/{recordId} {
+      allow read: if isBoss() || inMyBranch(resource.data) || (isOwnEmployee() && resource.data.employeeId == request.auth.uid);
+      allow write: if isBoss();
+    }
+
+    match /organizations/main/sales/{recordId} {
+      allow read, write: if isBoss();
+    }
+
+    match /organizations/main/transfers/{recordId} {
+      allow read: if isBoss() || (isAdmin() && resource.data.fromBranchId == profile().branchId);
+      allow create: if isBoss() || (isAdmin() && request.resource.data.fromBranchId == profile().branchId);
+      allow update, delete: if isBoss();
+    }
+
+    match /organizations/main/auditLog/{recordId} {
+      allow read: if isBoss();
+      allow create: if signedIn() && request.resource.data.actorId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /organizations/main/notifications/{recordId} {
+      allow read: if signedIn();
+      allow write: if isBoss();
+    }
+  }
+}
