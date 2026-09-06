@@ -6,8 +6,21 @@ import BossDashboard from "./components/boss/BossDashboard.jsx";
 import AdminDashboard from "./components/admin/AdminDashboard.jsx";
 import EmployeeDashboard from "./components/employee/EmployeeDashboard.jsx";
 
-const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://localhost:4000")).replace(/\/$/, "");
+const configuredApiUrl = String(import.meta.env.VITE_API_URL || "")
+  .trim()
+  .replace(/^['"]|['"]$/g, "")
+  .replace(/\/+$/, "");
+const API_URL = configuredApiUrl && !/^https?:\/\//i.test(configuredApiUrl) && !configuredApiUrl.startsWith("/")
+  ? `https://${configuredApiUrl}`
+  : configuredApiUrl || (import.meta.env.PROD ? "" : "http://localhost:4000");
 const apiUrl = (path) => `${API_URL}${path}`;
+
+const getConnectionError = (error) => {
+  if (error instanceof TypeError && /pattern|url|fetch/i.test(error.message)) {
+    return "Backend URL noto'g'ri. Netlify Environment variables ichida VITE_API_URL ni https:// bilan kiriting.";
+  }
+  return "Backend mavjud emas. VITE_API_URL va backend serverni tekshiring.";
+};
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -27,8 +40,8 @@ export default function App() {
       setState(data.state || data);
       if (data.user) setSession(data.user);
       setLoading(false);
-    } catch {
-      setError("Backend mavjud emas. Iltimos, serverni ishga tushiring: npm run server");
+    } catch (error) {
+      setError(getConnectionError(error));
       setLoading(false);
     }
   };
@@ -84,7 +97,7 @@ export default function App() {
       setState(data.state || null);
       sendTelegramMessage(`✅ CRM tizimga kirdi: ${data.user.name} (${data.user.phone})`);
     } catch (err) {
-      setError(err.message || "Login xatosi");
+      setError(getConnectionError(err) || err.message || "Login xatosi");
     }
   };
 
