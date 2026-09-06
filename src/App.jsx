@@ -6,7 +6,8 @@ import BossDashboard from "./components/boss/BossDashboard.jsx";
 import AdminDashboard from "./components/admin/AdminDashboard.jsx";
 import EmployeeDashboard from "./components/employee/EmployeeDashboard.jsx";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://localhost:4000")).replace(/\/$/, "");
+const apiUrl = (path) => `${API_URL}${path}`;
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -16,7 +17,7 @@ export default function App() {
 
   const fetchState = async (token) => {
     try {
-      const response = await fetch(`${API_URL}/api/state`, {
+      const response = await fetch(apiUrl("/api/state"), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!response.ok) {
@@ -46,7 +47,7 @@ export default function App() {
       const next = typeof updater === "function" ? updater(previous) : updater;
       const token = localStorage.getItem("bbl-crm-token");
       if (token) {
-        fetch(`${API_URL}/api/state`, {
+        fetch(apiUrl("/api/state"), {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -69,7 +70,7 @@ export default function App() {
         pass: form?.pass ?? form?.password ?? "",
       };
 
-      const response = await fetch(`${API_URL}/api/login`, {
+      const response = await fetch(apiUrl("/api/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -97,7 +98,7 @@ export default function App() {
     if (!confirm("Barcha ma’lumotlar serverdan tozalab, yangi boshlang'ich holatga qaytariladi. Davom etilsinmi?")) return;
     const token = localStorage.getItem("bbl-crm-token");
     try {
-      const response = await fetch(`${API_URL}/api/reset`, {
+      const response = await fetch(apiUrl("/api/reset"), {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

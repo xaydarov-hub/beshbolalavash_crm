@@ -39,6 +39,16 @@ cp .env.example .env
 
 3. `.env` ichidagi Firebase qiymatlarini haqiqiy Firebase loyihangizga moslashtiring.
 
+Netlify'da login ishlashi uchun backend serveringizning ommaviy HTTPS manzilini
+Netlify Site configuration -> Environment variables bo'limida kiriting:
+
+```env
+VITE_API_URL=https://your-crm-backend.example.com
+```
+
+Netlify buildni qayta ishga tushirgandan keyin frontend telefonlardan ham shu backendga
+ulanadi. `localhost:4000` faqat lokal kompyuter uchun ishlaydi.
+
 4. Dev serverni ishga tushiring:
 
 ```bash
