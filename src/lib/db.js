@@ -17,6 +17,8 @@ function makeUsers(branches) {
       salaryType: "oylik",
       rate: 0,
       hireDate: todayISO(),
+      workStart: "08:00",
+      workEnd: "17:00",
       firstLogin: false,
     },
   ];
@@ -158,6 +160,7 @@ export function seedState() {
     notifications: genNotifications(users),
     evaluations: [],
     transfers: [],
+    payrollHistory: [],
   };
 }
 
@@ -173,6 +176,7 @@ export function loadState() {
       transfers: Array.isArray(saved.transfers) ? saved.transfers : [],
       notifications: Array.isArray(saved.notifications) ? saved.notifications : [],
       auditLog: Array.isArray(saved.auditLog) ? saved.auditLog : [],
+      payrollHistory: Array.isArray(saved.payrollHistory) ? saved.payrollHistory : [],
     };
   } catch {
     return null;

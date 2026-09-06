@@ -31,6 +31,10 @@ export function hoursBetween(checkIn, checkOut) {
   return mins / 60;
 }
 
+export function isLate(checkIn, workStart = "08:00") {
+  return Boolean(checkIn && workStart && checkIn > workStart);
+}
+
 export function fmtHours(h) {
   const hh = Math.floor(h);
   const mm = Math.round((h - hh) * 60);

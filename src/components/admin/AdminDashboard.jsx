@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { todayISO, fmtHours, hoursBetween, uid } from "../../lib/utils.js";
+import { todayISO, fmtHours, hoursBetween, uid, isLate } from "../../lib/utils.js";
 import { logAction } from "../../lib/db.js";
 import EvaluationPanel from "../EvaluationPanel.jsx";
 import EmployeeTransfer from "../EmployeeTransfer.jsx";
@@ -28,7 +28,7 @@ export default function AdminDashboard({ state, persist, session }) {
       const normalizedPatch = patch.status && patch.status !== "keldi"
         ? { ...patch, checkIn: "", checkOut: "", late: false }
         : patch.checkIn !== undefined
-          ? { ...patch, late: patch.checkIn > "08:00" }
+          ? { ...patch, late: isLate(patch.checkIn, emp.workStart) }
           : patch;
       let attendance;
       if (existing) {
@@ -82,9 +82,9 @@ export default function AdminDashboard({ state, persist, session }) {
                 <option value="tatil">Ta'til</option>
                 <option value="kasal">Kasal</option>
               </select>
-              <input type="time" className="input" style={{ padding: "5px 8px" }} disabled={r.status !== "keldi"}
+              <input type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" className="input" style={{ padding: "5px 8px" }} placeholder="08:00" disabled={r.status !== "keldi"}
                 value={r.checkIn} onChange={(e) => updateStatus(emp, { checkIn: e.target.value })} />
-              <input type="time" className="input" style={{ padding: "5px 8px" }} disabled={r.status !== "keldi"}
+              <input type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" className="input" style={{ padding: "5px 8px" }} placeholder="17:00" disabled={r.status !== "keldi"}
                 value={r.checkOut} onChange={(e) => updateStatus(emp, { checkOut: e.target.value })} />
               <div className="muted" style={{ fontSize: 12.5 }}>{r.status === "keldi" && r.checkIn && r.checkOut ? fmtHours(hrs) : "—"}</div>
             </div>

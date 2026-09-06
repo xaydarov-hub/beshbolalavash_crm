@@ -10,7 +10,7 @@ const POSITIONS = ["Ofitsiant", "Kassir", "Oshpaz", "Kuryer (Zim-Zim)", "Tozalov
 
 export default function Employees({ state, persist, session, firebaseMode }) {
   const [form, setForm] = useState({
-    name: "", phone: "", year: "", password: "", branchId: state.branches[0]?.id || "",
+    name: "", phone: "", year: "", password: "", workStart: "08:00", workEnd: "17:00", branchId: state.branches[0]?.id || "",
     role: "employee", position: POSITIONS[0], salaryType: "oylik", rate: "", email: "", temporaryPassword: "",
   });
   const [created, setCreated] = useState(null);
@@ -33,6 +33,7 @@ export default function Employees({ state, persist, session, firebaseMode }) {
     }
     const newUser = {
       id: uid(), role: form.role, name: form.name.trim(), phone, year: form.password.trim(), customPassword: form.password.trim(),
+      workStart: form.workStart, workEnd: form.workEnd,
       branchId: form.branchId || null,
       position: form.role === "admin" ? "Filial admini" : form.position,
       salaryType: form.role === "employee" ? form.salaryType : "oylik",
@@ -72,6 +73,12 @@ export default function Employees({ state, persist, session, firebaseMode }) {
                 <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="90XXXXXXX" /></label>
               {!firebaseMode && <label className="field"><div className="label">Boshlang'ich parol</div>
                 <input className="input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Xodimga beriladigan parol" /></label>}
+              {!firebaseMode && <>
+                <label className="field"><div className="label">Ish boshlanishi (24 soat)</div>
+                  <input className="input" type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" value={form.workStart} onChange={(e) => setForm({ ...form, workStart: e.target.value })} placeholder="08:00" /></label>
+                <label className="field"><div className="label">Ish tugashi (24 soat)</div>
+                  <input className="input" type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" value={form.workEnd} onChange={(e) => setForm({ ...form, workEnd: e.target.value })} placeholder="17:00" /></label>
+              </>}
               {firebaseMode && <>
                 <label className="field"><div className="label">Xodim emaili (login)</div>
                   <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="xodim@email.com" /></label>

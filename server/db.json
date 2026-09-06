@@ -23,6 +23,8 @@
   ],
   "users": [
     {
+      "workStart": "08:00",
+      "workEnd": "17:00",
       "id": "boss-1",
       "role": "boss",
       "name": "Besh Bola Lavash",
@@ -36,6 +38,8 @@
       "passwordHash": "scrypt:ed5bced807364473094f055aea468047:1c396ca2b9a5494a8624735a9c7d0a76cb6df30da68021565ed21d84673a6c224d0fbd3637c617ee2561649840d0f3d85018c64e5585ced0f110569f50a86764"
     },
     {
+      "workStart": "08:00",
+      "workEnd": "17:00",
       "id": "admin-1",
       "role": "admin",
       "name": "Filial Admini",
@@ -49,6 +53,8 @@
       "passwordHash": "scrypt:b743ee7ed455149e5a262d673492e0fe:0555057382c94f47a72e8fd12d22fa921ba57ced717d1b3237f31b896cfe39cb232c5f7016d0fd913236eb2eac9b4471997ca2d8805e32c200b02f369b5cf0dc"
     },
     {
+      "workStart": "08:00",
+      "workEnd": "17:00",
       "id": "zx6727tj",
       "role": "employee",
       "name": "Xaydarov Torabek",
@@ -205,5 +211,6 @@
     }
   ],
   "evaluations": [],
-  "transfers": []
+  "transfers": [],
+  "payrollHistory": []
 }

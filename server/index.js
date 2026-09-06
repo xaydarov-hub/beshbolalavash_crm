@@ -31,10 +31,11 @@ function verifyPassword(password, storedHash) {
 
 function migratePasswords(users) {
   return users.map((user) => {
-    if (user.passwordHash) return user;
-    const plainPassword = user.customPassword || user.year;
-    if (!plainPassword) return user;
-    const { year, customPassword, ...safeUser } = user;
+    const withSchedule = { workStart: '08:00', workEnd: '17:00', ...user };
+    if (withSchedule.passwordHash) return withSchedule;
+    const plainPassword = withSchedule.customPassword || withSchedule.year;
+    if (!plainPassword) return withSchedule;
+    const { year, customPassword, ...safeUser } = withSchedule;
     return { ...safeUser, passwordHash: hashPassword(plainPassword) };
   });
 }
@@ -48,6 +49,7 @@ async function initDb() {
   if (JSON.stringify(migratedUsers) !== JSON.stringify(db.data.users)) {
     db.data.users = migratedUsers;
   }
+  if (!Array.isArray(db.data.payrollHistory)) db.data.payrollHistory = [];
   await db.write();
 }
 
@@ -61,6 +63,8 @@ function makeUsers() {
       year: '1122334411',
       branchId: null,
       position: 'Direktor',
+      workStart: '08:00',
+      workEnd: '17:00',
       salaryType: 'oylik',
       rate: 0,
       hireDate: todayISO(),
@@ -74,6 +78,8 @@ function makeUsers() {
       year: '2024',
       branchId: 'branch-1',
       position: 'Filial admini',
+      workStart: '08:00',
+      workEnd: '17:00',
       salaryType: 'oylik',
       rate: 3200000,
       hireDate: todayISO(),
@@ -87,6 +93,8 @@ function makeUsers() {
       year: '2024',
       branchId: 'branch-1',
       position: 'Ofitsiant',
+      workStart: '08:00',
+      workEnd: '17:00',
       salaryType: 'kunlik',
       rate: 120000,
       hireDate: todayISO(),
@@ -115,6 +123,7 @@ function buildState() {
     notifications: [{ id: uid(), forRole: 'boss', text: 'Sistema ishga tushdi. Boshqaruv tayyor.', at: today, read: false }],
     evaluations: [],
     transfers: [],
+    payrollHistory: [],
   };
 }
 

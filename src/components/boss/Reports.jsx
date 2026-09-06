@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { fmt, todayISO, monthKey } from "../../lib/utils.js";
+import { fmt, todayISO, monthKey, uid } from "../../lib/utils.js";
+import { logAction } from "../../lib/db.js";
 import { computeAllReports } from "../../lib/salary.js";
 
 function csvCell(value) {
@@ -114,6 +115,19 @@ export default function Reports({ state, persist }) {
   };
 
   const grand = reports.reduce((sum, report) => sum + report.total, 0);
+  const closePayroll = () => {
+    if (!reports.length) return;
+    const alreadyClosed = (state.payrollHistory || []).some((record) => record.month === month && record.branchId === branchId);
+    if (alreadyClosed && !confirm(`${month} oylik hisoboti allaqachon saqlangan. Yangi versiya bilan almashtirilsinmi?`)) return;
+    const snapshot = {
+      id: uid(), month, branchId, createdAt: new Date().toISOString(), total: grand,
+      employees: reports.map((report) => ({ employeeId: report.emp.id, name: report.emp.name, worked: report.worked, hours: report.totalHours, base: report.base, bonuses: report.bonuses, fines: report.fines, total: report.total })),
+    };
+    persist((current) => logAction(
+      { ...current, payrollHistory: [...(current.payrollHistory || []).filter((record) => !(record.month === month && record.branchId === branchId)), snapshot] },
+      "Boshliq", `${month} oylik hisoboti saqlandi. Jami: ${fmt(grand)} so'm.`
+    ));
+  };
 
   return (
     <div>
@@ -128,6 +142,7 @@ export default function Reports({ state, persist }) {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="btn btn-green" onClick={exportCSV}>⬇ CSV yuklab olish</button>
           <button className="btn btn-primary" onClick={() => downloadReportPng({ month, reports, branches: state.branches, total: grand })}>🖼 PNG hisobot</button>
+          <button className="btn btn-primary" onClick={closePayroll}>✅ Oylikni saqlash</button>
         </div>
       </div>
 
@@ -149,6 +164,18 @@ export default function Reports({ state, persist }) {
         ))}
         {reports.length > 0 && <div className="tfoot"><span className="muted">Jami maosh:</span><b>{fmt(grand)} so'm</b></div>}
         {!reports.length && <div className="empty">Tanlangan davr uchun xodim topilmadi.</div>}
+      </div>
+      <h3 className="section-title" style={{ marginTop: 26 }}>Saqlangan oyliklar tarixi</h3>
+      <div className="table-wrap">
+        {(state.payrollHistory || []).length === 0 && <div className="empty">Hali saqlangan oylik yo'q.</div>}
+        {[...(state.payrollHistory || [])].reverse().map((record) => (
+          <div key={record.id} className="trow" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
+            <span><b>{record.month}</b></span>
+            <span className="muted">{record.employees?.length || 0} xodim</span>
+            <span className="muted">{record.createdAt?.slice(0, 10)}</span>
+            <span style={{ color: "var(--sauce)", fontWeight: 700 }}>{fmt(record.total)} so'm</span>
+          </div>
+        ))}
       </div>
       <div className="hint">Hisob: asosiy maosh + bonus − jarima. Savdo faqat foizli xodimlar uchun kiritiladi; ball xizmat sifati ko'rsatkichi bo'lib, maoshga avtomatik qo'shilmaydi.</div>
     </div>
