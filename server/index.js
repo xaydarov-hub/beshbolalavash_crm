@@ -160,6 +160,7 @@ const allowedOrigins = (frontendUrl || 'http://localhost:5173,http://localhost:4
 app.use(cors({
   origin: frontendUrl ? allowedOrigins : true,
   credentials: Boolean(frontendUrl),
+  maxAge: 600,
 }));
 app.use(express.json({ limit: '5mb' }));
 

@@ -24,7 +24,7 @@ export default function App() {
   const fetchState = async () => {
     setLoading(true); setError("");
     try {
-      const data = await request("/api/state");
+      const data = await request("/api/state", { timeout: 45000 });
       acceptState(data.state); setSession(data.user);
     } catch (error) {
       if (error.status === 401) localStorage.removeItem("bbl-crm-token");
