@@ -1,4 +1,4 @@
-import { request } from "./lib/api.js";
+import { request, requireCurrentApi } from "./lib/api.js";
 import { stateChanges } from "./lib/changes.js";
 import React, { useEffect, useState, useRef } from "react";
 import { sendTelegramMessage } from "./lib/telegram.js";
@@ -16,6 +16,18 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const clearSession = () => {
+    localStorage.removeItem('bbl-crm-token');
+    stateRef.current = null;
+    setState(null);
+    setSession(null);
+  };
+  useEffect(() => {
+    const expired = () => { clearSession(); setError('Sessiya tugadi. Qayta kiring.'); };
+    window.addEventListener('crm:session-expired', expired);
+    return () => window.removeEventListener('crm:session-expired', expired);
+  }, []);
 
   const acceptState = (next) => {
     stateRef.current = next;
@@ -45,7 +57,7 @@ export default function App() {
       try {
         const revision = stateRef.current?.revision || 0;
         const data = await request("/api/state", { headers: { "If-None-Match": `"${session.id}:${revision}"` } });
-        if (active && data?.state && (data.state.revision || 0) > (stateRef.current?.revision || 0)) acceptState(data.state);
+        if (active && data?.state && (data.state.revision == null || (data.state.revision || 0) > (stateRef.current?.revision || 0))) acceptState(data.state);
       } catch (error) {
         if (active && error.status === 401) { localStorage.removeItem("bbl-crm-token"); setSession(null); setError("Sessiya tugadi. Qayta kiring."); }
       } finally { inFlight = false; }
@@ -61,6 +73,7 @@ export default function App() {
       setSaving(true); setError("");
       try {
         const previous = stateRef.current;
+        requireCurrentApi(previous);
         const next = typeof updater === "function" ? updater(previous) : updater;
         const changes = stateChanges(previous, next);
         if (!changes.length) return true;
@@ -77,6 +90,7 @@ export default function App() {
     const operation = queue.current.then(async () => {
       setSaving(true);
       try {
+        requireCurrentApi(stateRef.current);
         const data = await request("/api/sales", { method: "POST", body: input });
         acceptState(data.state);
         return data.state;
@@ -106,8 +120,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    localStorage.removeItem("bbl-crm-token");
-    setSession(null);
+    clearSession();
     sendTelegramMessage(`🚪 CRM tizimdan chiqildi: ${session?.name || "foydalanuvchi"}`);
   };
 
@@ -145,6 +158,7 @@ export default function App() {
 
   return (
     <>
+      {(!Number.isInteger(state.revision) || !Array.isArray(state.dailySales)) && <div className="firebase-error" role="status">Server yangilanishi kutilmoqda. Ma’lumotlarni ko‘rishingiz mumkin; saqlash hozircha mavjud emas.</div>}
       {error && <div className="firebase-error" role="alert">{error} {localStorage.getItem("bbl-crm-token") && <button className="btn" onClick={fetchState}>Qayta yuklash</button>}</div>}
       {saving && <div className="save-banner" role="status">Serverga saqlanmoqda...</div>}
       <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout}>

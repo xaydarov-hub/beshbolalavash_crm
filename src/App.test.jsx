@@ -11,9 +11,9 @@ describe('App', () => {
     localStorage.clear();
     global.fetch = vi.fn((url, options = {}) => {
       if (url.endsWith('/api/login')) {
-        return Promise.resolve({ ok: true, json: async () => ({ token: 'test-token', user: state.users[0], state }) });
+        return Promise.resolve(new Response(JSON.stringify({ token: 'test-token', user: state.users[0], state }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
       }
-      return Promise.resolve({ ok: true, json: async () => ({ user: state.users[0], state }) });
+      return Promise.resolve(new Response(JSON.stringify({ user: state.users[0], state }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     });
   });
 

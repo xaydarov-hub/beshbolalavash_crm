@@ -346,6 +346,13 @@ app.use((error, req, res, next) => {
 if (process.env.NODE_ENV !== 'test') {
   await initDb();
   const server = app.listen(PORT, () => {
-    console.log(`CRM backend running on http://localhost:${server.address().port}`);
+    const address = server.address();
+    const actualPort = address && typeof address === 'object' ? address.port : PORT;
+    console.log(`CRM backend running on http://localhost:${actualPort}`);
+  });
+
+  server.on('error', (error) => {
+    console.error('Backend listen failed:', error);
+    process.exitCode = 1;
   });
 }
