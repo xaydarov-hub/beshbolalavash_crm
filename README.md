@@ -160,3 +160,9 @@ Besh Bola Lavash CRM / HR boshqaruv platformasi.
 - Run `npm run test:load` for an isolated HTTP test with 15 simultaneous logins, 150 conditional reads, 15 sales writes and 15 attendance writes over 10,000 history records. It uses a temporary database and removes only that test directory.
 - Run one backend process per JSON database. Set `DB_PATH` to an existing persistent disk path for production; copy the existing database there before changing the path. Multiple replicas require a shared transactional database rather than separate JSON files.
 - Render and Netlify must deploy the same Git revision. `/api/health` exposes `apiVersion: 2` and the Render commit as `release` so deployment can be verified.
+
+### Render startup: JWT_SECRET or port scan failure
+
+In the existing Render service, open Environment and configure JWT_SECRET using a cryptographically random value of at least 32 characters. A local `.env.render.local` file, if prepared for this deployment, can be pasted into Add from .env. This file is ignored by Git. Choose Save, rebuild, and deploy. The variable belongs to the backend service, not to Netlify and not under a VITE_ name. The generateValue declaration in render.yaml applies to services managed through a Blueprint; it does not configure an independently created service automatically.
+
+The server binds to 0.0.0.0 and uses Render's PORT. A startup exception before listen also causes port scans to fail, so resolve JWT_SECRET first. The secret stays configured across restarts; changing it requires users to sign in again. After deployment, verify that /api/health contains apiVersion 2 and the current release commit.

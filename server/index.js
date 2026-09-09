@@ -11,10 +11,10 @@ import { promisify } from 'node:util';
 import { createStore } from './store.js';
 import { applyChanges } from './changes.js';
 import { gzip } from 'node:zlib';
+import { serverConfig } from './config.js';
 
 const app = express();
-const PORT = Number(process.env.PORT ?? 4000);
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : crypto.randomBytes(32).toString('hex'));
+const { port: PORT, host: HOST, secret: JWT_SECRET } = serverConfig();
 const dbFile = new JSONFile(process.env.DB_PATH || './server/db.json');
 const db = new Low(dbFile, { users: [], branches: [], attendance: [], adjustments: [], sales: {}, leaveRequests: [], auditLog: [], notifications: [], evaluations: [], transfers: [] });
 let store;
@@ -30,10 +30,6 @@ async function sendState(req, res, payload) {
     return res.type('json').set('Content-Encoding', 'gzip').send(body);
   }
   return res.type('json').send(json);
-}
-
-if (!JWT_SECRET || JWT_SECRET.length < 32) {
-  throw new Error('JWT_SECRET must be set and at least 32 characters long.');
 }
 
 async function hashPassword(password) {
@@ -345,7 +341,7 @@ app.use((error, req, res, next) => {
 
 if (process.env.NODE_ENV !== 'test') {
   await initDb();
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, HOST, () => {
     const address = server.address();
     const actualPort = address && typeof address === 'object' ? address.port : PORT;
     console.log(`CRM backend running on http://localhost:${actualPort}`);
