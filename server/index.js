@@ -175,27 +175,35 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-function publicUser(user) {
+function publicUser(user, includeSecrets = false) {
   if (!user) return null;
+  if (includeSecrets) return user;
   const { year, customPassword, passwordHash, ...safeUser } = user;
   return safeUser;
 }
 
 export function publicState(state, session) {
   if (session.role === 'boss') {
-    return { ...state, users: state.users.map(publicUser) };
+    return { ...state, users: state.users.map((user) => publicUser(user, true)) };
   }
 
-  const visibleUsers = state.users.filter((user) => user.id === session.id || (session.role === 'admin' && user.branchId === session.branchId));
+  const currentUser = state.users.find((user) => user.id === session.id) || session;
+  const visibleUsers = state.users.filter((user) => {
+    if (user.id === session.id) return true;
+    if (session.role === 'admin') return user.branchId === currentUser.branchId;
+    if (session.role === 'employee') return false;
+    return false;
+  });
   const visibleIds = new Set(visibleUsers.map((user) => user.id));
+
   return {
     ...state,
     users: visibleUsers.map(publicUser),
     dailySales: (state.dailySales || []).filter(r => visibleIds.has(r.employeeId)),
     sales: Object.fromEntries(Object.entries(state.sales || {}).filter(([key]) => [...visibleIds].some(id => key.startsWith(`${id}:`)))),
     payrollHistory: (state.payrollHistory || []).map(r => ({ ...r, employees: (r.employees || []).filter(e => visibleIds.has(e.employeeId)) })).filter(r => r.employees.length).map(r => ({ ...r, total: r.employees.reduce((sum, e) => sum + e.total, 0) })),
-    auditLog: (state.auditLog || []).filter(r => visibleIds.has(r.employeeId)),
-    notifications: (state.notifications || []).filter(r => r.employeeId === session.id),
+    auditLog: (state.auditLog || []).filter(r => visibleIds.has(r.employeeId) || r.actor === session.name),
+    notifications: (state.notifications || []).filter(r => r.employeeId === session.id || r.forRole === session.role || (!r.employeeId && !r.forRole)),
     attendance: state.attendance.filter((record) => visibleIds.has(record.employeeId)),
     adjustments: state.adjustments.filter((record) => visibleIds.has(record.employeeId)),
     evaluations: state.evaluations.filter((record) => visibleIds.has(record.employeeId)),
@@ -222,14 +230,21 @@ export async function mergeScopedState(current, next, session) {
     };
   }
   const merged = { ...current };
-  const visibleUsers = current.users.filter((user) => user.id === session.id || (session.role === 'admin' && user.branchId === session.branchId));
+  const currentUser = current.users.find((user) => user.id === session.id) || session;
+  const visibleUsers = current.users.filter((user) => {
+    if (user.id === session.id) return true;
+    if (session.role === 'admin') return user.branchId === currentUser.branchId;
+    return false;
+  });
   const visibleIds = new Set(visibleUsers.map((user) => user.id));
 
   if (session.role === 'admin') {
+    const adminBranchId = session.branchId || currentUser?.branchId;
+    const branchVisibleIds = new Set((current.users || []).filter((user) => user.branchId === adminBranchId).map((user) => user.id));
     for (const collection of ['attendance', 'evaluations', 'transfers']) {
       const incoming = Array.isArray(next[collection]) ? next[collection] : [];
-      const preserved = current[collection].filter((record) => !visibleIds.has(record.employeeId));
-      merged[collection] = [...preserved, ...incoming.filter((record) => visibleIds.has(record.employeeId))];
+      const preserved = current[collection].filter((record) => !branchVisibleIds.has(record.employeeId) && !visibleIds.has(record.employeeId));
+      merged[collection] = [...preserved, ...incoming.filter((record) => branchVisibleIds.has(record.employeeId) || visibleIds.has(record.employeeId))];
     }
   }
 

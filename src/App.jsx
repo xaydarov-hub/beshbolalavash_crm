@@ -37,9 +37,13 @@ export default function App() {
     setLoading(true); setError("");
     try {
       const data = await request("/api/state", { timeout: 45000 });
-      acceptState(data.state); setSession(data.user);
+      if (data?.state) acceptState(data.state);
+      if (data?.user) setSession(data.user);
     } catch (error) {
-      if (error.status === 401) localStorage.removeItem("bbl-crm-token");
+      if (error.status === 401) {
+        localStorage.removeItem("bbl-crm-token");
+        setSession(null);
+      }
       setError(error.message);
     } finally { setLoading(false); }
   };

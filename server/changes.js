@@ -7,6 +7,7 @@ export function applyChanges(visible, changes, session) {
   const allowed = session.role === 'boss' ? EDITABLE_COLLECTIONS : session.role === 'admin' ? ['attendance', 'evaluations', 'transfers', 'users', 'auditLog'] : ['leaveRequests'];
   const next = { ...visible };
   for (const change of changes) {
+    if (!change || typeof change !== 'object') fail('O‘zgarish formati noto‘g‘ri.');
     const { collection, id, before, after } = change;
     if (!allowed.includes(collection)) fail('Bu ma’lumotni o‘zgartirish huquqi yo‘q.', 403);
     if (typeof id !== 'string' || !id || id.length > 128 || (after !== null && (!after || after.id !== id))) fail('Yozuv identifikatori noto‘g‘ri.');

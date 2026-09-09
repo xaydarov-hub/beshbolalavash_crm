@@ -1,0 +1,49 @@
+import { loginKey } from '../src/lib/identity.js';
+import { EVALUATION_CRITERIA } from '../src/lib/evaluation.js';
+
+const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+const time = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+const text = (value, max = 200) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
+const money = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e12;
+const fail = message => { throw Object.assign(new Error(message), { status: 400 }); };
+
+export function validateChanges(current, next, changes, session) {
+  const userById = new Map(next.users.map(user => [user.id, user]));
+  const branchIds = new Set(next.branches.map(branch => branch.id));
+  for (const { collection, before, after: row } of changes) {
+    if (!row) {
+      if (collection === 'users') fail('Xodim tarixini saqlash uchun uni arxivlang.');
+      if (collection === 'branches' && (next.users.some(u => u.branchId === before.id) || next.transfers.some(r => r.fromBranchId === before.id || r.toBranchId === before.id))) fail('Bu filialga bog‘langan xodim yoki ko‘chirish tarixi bor.');
+      continue;
+    }
+    if (collection === 'users') {
+      if (!text(row.name) || !text(row.phone, 100) || !loginKey(row.phone)) fail('Ism va telefon/loginni to‘liq kiriting.');
+      if (!['boss', 'admin', 'employee'].includes(row.role)) fail('Rol noto‘g‘ri.');
+      if (row.role === 'boss' && (!before || before.role !== 'boss')) fail('Yangi boshliq hisobi bu yerda yaratilmaydi.');
+      if (before?.id === session.id && (row.role !== before.role || row.active === false)) fail('O‘z boshqaruv hisobingizni o‘chira olmaysiz.');
+      if (row.role !== 'boss' && !branchIds.has(row.branchId)) fail('Xodim yoki admin uchun mavjud filialni tanlang.');
+      if (next.users.some(u => u.id !== row.id && loginKey(u.phone) === loginKey(row.phone))) fail('Bu telefon yoki login allaqachon band.');
+      if (!['oylik', 'kunlik', 'soatlik', 'foiz'].includes(row.salaryType) || !money(row.rate) || (row.salaryType === 'foiz' && row.rate > 100)) fail('Maosh turi yoki stavkasi noto‘g‘ri.');
+      if (!time(row.workStart) || !time(row.workEnd) || !date(row.hireDate)) fail('Ish vaqti yoki ishga kirish sanasi noto‘g‘ri.');
+      if (row.endDate && !date(row.endDate)) fail('Ish tugash sanasi noto‘g‘ri.');
+      if (row.passwordHash !== undefined || row.authVersion !== before?.authVersion) fail('Hisobning himoya maydonlarini o‘zgartirish mumkin emas.');
+      const password = row.customPassword || row.year;
+      if ((!before && !password) || (password && (typeof password !== 'string' || password.trim().length < 4 || password.length > 1024))) fail('Boshlang‘ich parol kamida 4 belgidan iborat bo‘lsin.');
+    }
+    if (collection === 'branches' && (!text(row.name) || next.branches.some(b => b.id !== row.id && b.name.trim().toLowerCase() === row.name.trim().toLowerCase()))) fail('Filial nomi bo‘sh yoki takrorlangan.');
+    if (['attendance', 'adjustments', 'evaluations', 'leaveRequests', 'transfers'].includes(collection) && !userById.has(row.employeeId)) fail('Xodim topilmadi. Ro‘yxatni yangilang.');
+    if (['attendance', 'adjustments', 'evaluations'].includes(collection) && !date(row.date)) fail('Sanani to‘g‘ri kiriting.');
+    if (collection === 'attendance') {
+      if (!['keldi', 'kelmadi', 'tatil', 'kasal'].includes(row.status)) fail('Davomat holati noto‘g‘ri.');
+      if ((row.checkIn && !time(row.checkIn)) || (row.checkOut && !time(row.checkOut))) fail('Vaqtni HH:MM formatida kiriting.');
+    }
+    if (collection === 'adjustments' && (!['bonus', 'jarima'].includes(row.type) || !money(row.amount) || row.amount <= 0 || !text(row.comment, 2000))) fail('Bonus/jarima uchun musbat summa va sabab kerak.');
+    if (collection === 'evaluations' && EVALUATION_CRITERIA.some(c => typeof row.scores?.[c.id] !== 'number' || !Number.isFinite(row.scores[c.id]) || row.scores[c.id] < 0 || row.scores[c.id] > 5)) fail('Har bir mezon 0–5 ball oralig‘ida bo‘lsin.');
+    if (collection === 'leaveRequests') {
+      if (!date(row.from) || !date(row.to) || row.to < row.from || (Date.parse(row.to) - Date.parse(row.from)) / 86400000 > 365 || !text(row.reason, 2000) || !['tatil', 'kasal'].includes(row.type) || !['kutilmoqda', 'tasdiqlandi', 'radetildi'].includes(row.status)) fail('Ta’til sanalari, turi yoki sababi noto‘g‘ri. Davr bir yildan oshmasin.');
+      if (before && before.status !== 'kutilmoqda' && row.status !== before.status) fail('Bu so‘rov bo‘yicha qaror allaqachon saqlangan.');
+    }
+    if (collection === 'transfers' && (!branchIds.has(row.toBranchId) || row.fromBranchId === row.toBranchId || !date(row.effectiveDate) || (!before && current.users.find(u => u.id === row.employeeId)?.branchId !== row.fromBranchId))) fail('Ko‘chirish filiali yoki sanasi noto‘g‘ri.');
+    if (collection === 'payrollHistory' && (!/^\d{4}-\d{2}$/.test(row.month) || !Array.isArray(row.employees) || !Number.isFinite(row.total))) fail('Oylik hisoboti noto‘g‘ri.');
+  }
+}

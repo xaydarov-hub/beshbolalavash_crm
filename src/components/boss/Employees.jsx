@@ -157,10 +157,20 @@ export default function Employees({ state, persist, session, firebaseMode }) {
 function EmployeeProfile({ state, emp, onBack, persist, session }) {
   const [salaryType, setSalaryType] = useState(emp.salaryType);
   const [rate, setRate] = useState(String(emp.rate));
+  const [passwordDraft, setPasswordDraft] = useState(emp.customPassword || emp.year || "");
   const updateSalary = () => {
     const value = Number(rate);
     if (!rate.trim() || !Number.isFinite(value) || value < 0 || (salaryType === "foiz" && value > 100)) { alert("Stavkani to‘g‘ri kiriting. Foiz 0–100 oralig‘ida."); return; }
     persist(current => logAction({ ...current, users: current.users.map(u => u.id === emp.id ? { ...u, salaryType, rate: value } : u) }, session.name, `${emp.name}: maosh turi ${salaryType}, stavka ${value}.`));
+  };
+  const updatePassword = () => {
+    const nextPassword = passwordDraft.trim();
+    if (!session || session.role !== "boss") return;
+    if (!nextPassword) { alert("Parolni kiriting."); return; }
+    persist(current => logAction({
+      ...current,
+      users: current.users.map(u => u.id === emp.id ? { ...u, customPassword: nextPassword, year: nextPassword } : u),
+    }, session.name, `${emp.name} uchun parol o'zgartirildi.`));
   };
   const month = monthKey(todayISO());
   const r = computeEmployeeReport(state, emp.id, month);
@@ -180,6 +190,19 @@ function EmployeeProfile({ state, emp, onBack, persist, session }) {
         <button className="btn btn-primary" onClick={updateSalary}>Maosh sozlamalarini saqlash</button>
         <p className="hint">Oldin kiritilgan kunlik savdolarning foiz stavkasi saqlanadi. Yangi stavka keyingi yozuvlarga qo‘llanadi.</p>
         <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>{emp.position} · {branch?.name}</div>
+
+        {session?.role === "boss" && (
+          <div className="grid grid-2" style={{ marginTop: 12 }}>
+            <label className="field">
+              <div className="label">Parol</div>
+              <input className="input" type="text" value={passwordDraft} onChange={(e) => setPasswordDraft(e.target.value)} />
+            </label>
+            <div style={{ display: "flex", alignItems: "end" }}>
+              <button className="btn btn-primary" onClick={updatePassword}>Parolni yangilash</button>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-4">
           <div><div className="muted" style={{ fontSize: 12 }}>📞 Telefon</div><div>{emp.phone}</div></div>
           <div><div className="muted" style={{ fontSize: 12 }}>📅 Ishga kirgan</div><div>{emp.hireDate}</div></div>
