@@ -149,7 +149,7 @@ Besh Bola Lavash CRM / HR boshqaruv platformasi.
 - Employee history combines sales, attendance, evaluations, adjustments, transfers, leave and saved payroll, with month/all-history filters. Admin sees their branch, employees see only their own financial records. Open screens refresh every 30 seconds and on window focus.
 - All twelve evaluation criteria use 0-5. The overall score is their arithmetic mean out of 5. Server startup migrates historical weighted scores proportionally once and retains original scores as legacyScores.
 - Mobile tables stack into labelled cards, forms use 16px text to avoid iOS focus zoom, controls have 44px touch targets, and time fields use native pickers. Local development proxies /api so phones do not call their own localhost.
-- Deploy the frontend AND backend together; /api/sales and revision checks require the updated backend. Back up server/db.json before deployment. Production requires JWT_SECRET with at least 32 characters. No production data is changed by the test suite.
+- Deploy the frontend AND backend together; /api/sales and revision checks require the updated backend. Back up server/db.json before deployment. Production uses a configured strong JWT_SECRET or generates and saves a secure signing key automatically. No production data is changed by the test suite.
 - Validation: npm test and npm run build. Physical iPhone/Safari visual validation still needs a connected device/browser.
 
 ## Concurrent users and deployment
@@ -161,8 +161,10 @@ Besh Bola Lavash CRM / HR boshqaruv platformasi.
 - Run one backend process per JSON database. Set `DB_PATH` to an existing persistent disk path for production; copy the existing database there before changing the path. Multiple replicas require a shared transactional database rather than separate JSON files.
 - Render and Netlify must deploy the same Git revision. `/api/health` exposes `apiVersion: 2` and the Render commit as `release` so deployment can be verified.
 
-### Render startup: JWT_SECRET or port scan failure
+### Render startup and signing keys
 
-In the existing Render service, open Environment and configure JWT_SECRET using a cryptographically random value of at least 32 characters. A local `.env.render.local` file, if prepared for this deployment, can be pasted into Add from .env. This file is ignored by Git. Choose Save, rebuild, and deploy. The variable belongs to the backend service, not to Netlify and not under a VITE_ name. The generateValue declaration in render.yaml applies to services managed through a Blueprint; it does not configure an independently created service automatically.
+JWT_SECRET is optional. A configured value with at least 32 non-whitespace characters is preserved. If missing or too short, the server creates a cryptographically random 256-bit key in .jwt-secret next to DB_PATH (or at JWT_SECRET_FILE). The file has owner-only permissions on Linux, is published atomically without overwriting another process's key, and is ignored by Git. A corrupt existing key is never silently replaced. Authentication and token signature verification remain required.
 
-The server binds to 0.0.0.0 and uses Render's PORT. A startup exception before listen also causes port scans to fail, so resolve JWT_SECRET first. The secret stays configured across restarts; changing it requires users to sign in again. After deployment, verify that /api/health contains apiVersion 2 and the current release commit.
+Keep the database and generated key on persistent storage for sessions to survive instance replacement. Render's ephemeral filesystem can discard the generated key on redeploy, requiring users to sign in again. A strong configured JWT_SECRET avoids that session reset. Never put this key in a VITE_ variable or public assets.
+
+The server binds to 0.0.0.0 and uses Render's PORT. After deployment, verify /api/health contains apiVersion 2 and the current release commit. npm run test:load starts production mode with an empty JWT_SECRET and verifies concurrent login and writes against an isolated temporary database.

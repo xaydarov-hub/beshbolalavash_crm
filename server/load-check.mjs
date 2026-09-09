@@ -14,7 +14,7 @@ const users = Array.from({ length: 15 }, (_, i) => ({ id: `a${i}`, name: `Test a
 const employees = Array.from({ length: 15 }, (_, i) => ({ id: `e${i}`, name: `Test employee ${i}`, role: 'employee', branchId: 'b', salaryType: 'foiz', rate: 7 }));
 const attendance = Array.from({ length: 10000 }, (_, i) => ({ id: `att${i}`, employeeId: `e${i % 15}`, date: '2026-01-01', status: 'keldi', checkIn: '08:00', checkOut: '17:00' }));
 await writeFile(join(folder, 'db.json'), JSON.stringify({ users: [...users, ...employees], branches: [{ id: 'b' }], attendance, adjustments: [], evaluations: [], transfers: [], leaveRequests: [], auditLog: [], notifications: [], sales: {}, dailySales: [], payrollHistory: [], revision: 0 }));
-const child = spawn(process.execPath, ['server/index.js'], { env: { ...process.env, NODE_ENV: 'production', PORT: '0', DB_PATH: join(folder, 'db.json'), JWT_SECRET: crypto.randomBytes(32).toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'] });
+const child = spawn(process.execPath, ['server/index.js'], { env: { ...process.env, NODE_ENV: 'production', RENDER: 'true', PORT: '0', DB_PATH: join(folder, 'db.json'), JWT_SECRET: '', JWT_SECRET_FILE: join(folder, '.jwt-secret') }, stdio: ['ignore', 'pipe', 'pipe'] });
 let errors = '';
 child.stderr.on('data', data => { errors += data; });
 try {
