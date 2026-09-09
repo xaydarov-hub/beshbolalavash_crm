@@ -1,3 +1,4 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
 import React from "react";
 
 export default function AuditLog({ state }) {
@@ -6,7 +7,7 @@ export default function AuditLog({ state }) {
       <p className="hint" style={{ marginBottom: 14 }}>
         🛡 Tizimdagi barcha muhim harakatlar shu yerda saqlanadi — kim, qachon, nima qilgani. Hech kim yashirincha ma'lumot o'zgartira olmaydi.
       </p>
-      <div className="table-wrap">
+      <ResponsiveTable>
         {state.auditLog.length === 0 && <div className="empty">Yozuv yo'q.</div>}
         {state.auditLog.map((a) => (
           <div key={a.id} className="trow" style={{ gridTemplateColumns: "1fr 1fr 2.5fr" }}>
@@ -15,7 +16,7 @@ export default function AuditLog({ state }) {
             <div className="muted">{a.action}</div>
           </div>
         ))}
-      </div>
+      </ResponsiveTable>
     </div>
   );
 }

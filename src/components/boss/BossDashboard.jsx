@@ -1,3 +1,5 @@
+import SalesPanel from "../SalesPanel.jsx";
+import EmployeeHistory from "../EmployeeHistory.jsx";
 import React, { useState } from "react";
 import Overview from "./Overview.jsx";
 import Employees from "./Employees.jsx";
@@ -12,6 +14,7 @@ import EvaluationPanel from "../EvaluationPanel.jsx";
 import EmployeeTransfer from "../EmployeeTransfer.jsx";
 
 const TABS = [
+  { id: "sales", label: "Kunlik savdo", icon: "💰" },
   { id: "overview", label: "Bosh sahifa", icon: "🏠" },
   { id: "attendance", label: "Davomat", icon: "🕐" },
   { id: "employees", label: "Xodimlar", icon: "👥" },
@@ -25,7 +28,7 @@ const TABS = [
   { id: "audit", label: "Audit log", icon: "🛡" },
 ];
 
-export default function BossDashboard({ state, persist, session, firebaseMode }) {
+export default function BossDashboard({ state, persist, session, saveSale, firebaseMode }) {
   const [tab, setTab] = useState("overview");
   const pendingLeaves = state.leaveRequests.filter((r) => r.status === "kutilmoqda").length;
 
@@ -41,6 +44,7 @@ export default function BossDashboard({ state, persist, session, firebaseMode })
           </button>
         ))}
       </div>
+      {tab === "sales" && <SalesPanel state={state} session={session} saveSale={saveSale} />}
       {tab === "overview" && <Overview state={state} />}
       {tab === "attendance" && <Attendance state={state} persist={persist} session={session} />}
       {tab === "employees" && <Employees state={state} persist={persist} session={session} firebaseMode={firebaseMode} />}

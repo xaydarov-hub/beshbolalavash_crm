@@ -1,3 +1,4 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
 import React, { useState } from "react";
 import { todayISO, fmtHours, hoursBetween, isLate } from "../../lib/utils.js";
 import { logAction } from "../../lib/db.js";
@@ -61,7 +62,7 @@ export default function Attendance({ state, persist, session }) {
         </span>
       </div>
 
-      <div className="table-wrap">
+      <ResponsiveTable>
         <div className="trow thead" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 0.8fr" }}>
           <div>Xodim</div><div>Holati</div><div>Keldi</div><div>Ketdi</div><div>Ish vaqti</div><div>Kechikish</div>
         </div>
@@ -78,9 +79,9 @@ export default function Attendance({ state, persist, session }) {
                 <option value="tatil">Ta'til</option>
                 <option value="kasal">Kasal</option>
               </select>
-              <input type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" className="input" style={{ padding: "5px 8px" }} placeholder="08:00" disabled={r.status !== "keldi"}
+              <input type="time" className="input" style={{ padding: "5px 8px" }} placeholder="08:00" disabled={r.status !== "keldi"}
                 value={r.checkIn} onChange={(e) => updateStatus(emp, { checkIn: e.target.value })} />
-              <input type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" className="input" style={{ padding: "5px 8px" }} placeholder="17:00" disabled={r.status !== "keldi"}
+              <input type="time" className="input" style={{ padding: "5px 8px" }} placeholder="17:00" disabled={r.status !== "keldi"}
                 value={r.checkOut} onChange={(e) => updateStatus(emp, { checkOut: e.target.value })} />
               <div className="muted" style={{ fontSize: 12.5 }}>{r.status === "keldi" && r.checkIn && r.checkOut ? fmtHours(hrs) : "—"}</div>
               <div>
@@ -92,7 +93,7 @@ export default function Attendance({ state, persist, session }) {
           );
         })}
         {rows.length === 0 && <div className="empty">Ma'lumot yo'q.</div>}
-      </div>
+      </ResponsiveTable>
     </div>
   );
 }

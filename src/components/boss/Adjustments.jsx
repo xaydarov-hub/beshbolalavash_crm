@@ -1,3 +1,4 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
 import React, { useState } from "react";
 import { uid, fmt, todayISO } from "../../lib/utils.js";
 import { logAction } from "../../lib/db.js";
@@ -49,7 +50,7 @@ export default function Adjustments({ state, persist, session }) {
       </div>
 
       <h3 className="section-title">Barcha jarima va bonuslar</h3>
-      <div className="table-wrap">
+      <ResponsiveTable>
         <div className="trow thead" style={{ gridTemplateColumns: "0.8fr 1.1fr 0.7fr 1.8fr 0.7fr" }}>
           <div>Sana</div><div>Xodim</div><div>Turi</div><div>Sabab</div><div>Summa</div>
         </div>
@@ -63,7 +64,7 @@ export default function Adjustments({ state, persist, session }) {
             <div>{a.type === "jarima" ? "-" : "+"}{fmt(a.amount)}</div>
           </div>
         ))}
-      </div>
+      </ResponsiveTable>
     </div>
   );
 }

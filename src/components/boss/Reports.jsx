@@ -1,3 +1,4 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
 import React, { useState } from "react";
 import { fmt, todayISO, monthKey, uid } from "../../lib/utils.js";
 import { logAction } from "../../lib/db.js";
@@ -80,15 +81,6 @@ export default function Reports({ state, persist }) {
   const [branchId, setBranchId] = useState("all");
   const reports = computeAllReports(state, month, branchId);
 
-  const setSales = (empId, value) => {
-    const sales = Number(value);
-    if (!Number.isFinite(sales) || sales < 0) {
-      alert("Savdo summasi 0 yoki undan katta haqiqiy son bo'lishi kerak.");
-      return;
-    }
-    persist((current) => ({ ...current, sales: { ...current.sales, [`${empId}:${month}`]: sales } }));
-  };
-
   const exportCSV = () => {
     const header = ["Xodim", "Filial", "Lavozim", "Ishlagan kun", "Soat", "Savdo", "Bonus", "Jarima", "Ball jami", "Ball o'rtacha", "Jami maosh"];
     const lines = reports.map((report) => [
@@ -121,7 +113,7 @@ export default function Reports({ state, persist }) {
     if (alreadyClosed && !confirm(`${month} oylik hisoboti allaqachon saqlangan. Yangi versiya bilan almashtirilsinmi?`)) return;
     const snapshot = {
       id: uid(), month, branchId, createdAt: new Date().toISOString(), total: grand,
-      employees: reports.map((report) => ({ employeeId: report.emp.id, name: report.emp.name, worked: report.worked, hours: report.totalHours, base: report.base, bonuses: report.bonuses, fines: report.fines, total: report.total })),
+      employees: reports.map((report) => ({ employeeId: report.emp.id, name: report.emp.name, worked: report.worked, hours: report.totalHours, sales: report.sales, saleRecords: report.saleRecords, base: report.base, bonuses: report.bonuses, fines: report.fines, total: report.total })),
     };
     persist((current) => logAction(
       { ...current, payrollHistory: [...(current.payrollHistory || []).filter((record) => !(record.month === month && record.branchId === branchId)), snapshot] },
@@ -146,7 +138,7 @@ export default function Reports({ state, persist }) {
         </div>
       </div>
 
-      <div className="table-wrap">
+      <ResponsiveTable>
         <div className="trow thead" style={{ gridTemplateColumns: "1.15fr 0.85fr 0.45fr 0.5fr 0.8fr 0.65fr 0.65fr 0.65fr 0.8fr" }}>
           <div>Xodim</div><div>Filial</div><div>Kun</div><div>Soat</div><div>Savdo</div><div>Bonus</div><div>Jarima</div><div>Ball</div><div>Jami</div>
         </div>
@@ -164,9 +156,9 @@ export default function Reports({ state, persist }) {
         ))}
         {reports.length > 0 && <div className="tfoot"><span className="muted">Jami maosh:</span><b>{fmt(grand)} so'm</b></div>}
         {!reports.length && <div className="empty">Tanlangan davr uchun xodim topilmadi.</div>}
-      </div>
+      </ResponsiveTable>
       <h3 className="section-title" style={{ marginTop: 26 }}>Saqlangan oyliklar tarixi</h3>
-      <div className="table-wrap">
+      <ResponsiveTable>
         {(state.payrollHistory || []).length === 0 && <div className="empty">Hali saqlangan oylik yo'q.</div>}
         {[...(state.payrollHistory || [])].reverse().map((record) => (
           <div key={record.id} className="trow" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
@@ -176,8 +168,8 @@ export default function Reports({ state, persist }) {
             <span style={{ color: "var(--sauce)", fontWeight: 700 }}>{fmt(record.total)} so'm</span>
           </div>
         ))}
-      </div>
-      <div className="hint">Hisob: asosiy maosh + bonus − jarima. Savdo faqat foizli xodimlar uchun kiritiladi; ball xizmat sifati ko'rsatkichi bo'lib, maoshga avtomatik qo'shilmaydi.</div>
+      </ResponsiveTable>
+      <div className="hint">Hisob: asosiy maosh + bonus − jarima. Savdoni «Kunlik savdo» bo‘limida kiriting; ball xizmat sifati ko'rsatkichi bo'lib, maoshga avtomatik qo'shilmaydi.</div>
     </div>
   );
 }

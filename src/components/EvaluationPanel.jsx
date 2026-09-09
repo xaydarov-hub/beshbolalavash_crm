@@ -32,18 +32,19 @@ export default function EvaluationPanel({ state, persist, session, employeeScope
   const total = evaluationTotal(scores);
   const selected = employees.find((employee) => employee.id === employeeId);
 
-  const save = () => {
+  const save = async () => {
     if (!selected) return;
     const cleanScores = normalizeScores(scores);
     const existing = (state.evaluations || []).find(
       (item) => item.employeeId === employeeId && item.date === date
     );
-    persist((current) => {
+    const ok = await persist((current) => {
       const record = {
         id: existing?.id || uid(),
         employeeId,
         date,
         scores: cleanScores,
+        scaleVersion: 2,
         total: evaluationTotal(cleanScores),
         comment: comment.trim(),
         assessedBy: session.name,
@@ -58,7 +59,7 @@ export default function EvaluationPanel({ state, persist, session, employeeScope
         `${selected.name}ni ${date} uchun ${record.total}/${MAX_EVALUATION_SCORE} ball bilan baholadi.`
       );
     });
-    setSaved(true);
+    setSaved(ok === true);
   };
 
   if (!employees.length) return <div className="empty">Baholash uchun xodim yo'q.</div>;
@@ -71,7 +72,7 @@ export default function EvaluationPanel({ state, persist, session, employeeScope
             <h3 className="section-title">Kunlik xizmat sifati bahosi</h3>
             <div className="hint">Har mezon uchun aniq holatga qarab tugma orqali ball bering. Bir xodimga bir kunda bitta baho saqlanadi.</div>
           </div>
-          <div className="score-total">{total}<small> / {MAX_EVALUATION_SCORE} ball</small></div>
+          <div className="score-total">{total.toFixed(1)}<small> / {MAX_EVALUATION_SCORE} ball</small></div>
         </div>
         <div className="grid grid-2">
           <label className="field"><div className="label">Sana</div>
@@ -83,14 +84,14 @@ export default function EvaluationPanel({ state, persist, session, employeeScope
             </select>
           </label>
         </div>
-        <div className="evaluation-top5">TOP-5: buyurtma, kutib olish, muomala, stol nazorati va stol tozaligi.</div>
+        <div className="evaluation-top5">Barcha mezonlar: 0–5 ball. Umumiy baho ? mezonlarning o‘rtachasi, 5 balldan.</div>
         <div className="criteria-list">
           {EVALUATION_CRITERIA.map((criterion, index) => (
             <div className="criterion" key={criterion.id}>
               <div className="criterion-label"><b>{index + 1}.</b> {criterion.label} <span>{criterion.max} ball{criterion.top ? " · TOP-5" : ""}</span></div>
               <div className="score-buttons" aria-label={`${criterion.label} uchun ball`}>
                 {Array.from({ length: criterion.max + 1 }, (_, score) => (
-                  <button type="button" key={score} className={`score-btn ${scores[criterion.id] === score ? "active" : ""}`}
+                  <button type="button" aria-pressed={scores[criterion.id] === score} key={score} className={`score-btn ${scores[criterion.id] === score ? "active" : ""}`}
                     onClick={() => { setScores({ ...scores, [criterion.id]: score }); setSaved(false); }}>
                     {score}
                   </button>

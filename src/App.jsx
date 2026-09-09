@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+import { request } from "./lib/api.js";
+import { stateChanges } from "./lib/changes.js";
+import React, { useEffect, useState, useRef } from "react";
 import { sendTelegramMessage } from "./lib/telegram.js";
 import Login from "./components/Login.jsx";
 import Shell from "./components/Shell.jsx";
@@ -6,73 +8,82 @@ import BossDashboard from "./components/boss/BossDashboard.jsx";
 import AdminDashboard from "./components/admin/AdminDashboard.jsx";
 import EmployeeDashboard from "./components/employee/EmployeeDashboard.jsx";
 
-const configuredApiUrl = String(import.meta.env.VITE_API_URL || "")
-  .trim()
-  .replace(/^['"]|['"]$/g, "")
-  .replace(/\/+$/, "");
-const API_URL = configuredApiUrl && !/^https?:\/\//i.test(configuredApiUrl) && !configuredApiUrl.startsWith("/")
-  ? `https://${configuredApiUrl}`
-  : configuredApiUrl || (import.meta.env.PROD ? "" : "http://localhost:4000");
-const apiUrl = (path) => `${API_URL}${path}`;
-
-const getConnectionError = (error) => {
-  if (error instanceof TypeError && /pattern|url|fetch/i.test(error.message)) {
-    return "Backend URL noto'g'ri. Netlify Environment variables ichida VITE_API_URL ni https:// bilan kiriting.";
-  }
-  return "Backend mavjud emas. VITE_API_URL va backend serverni tekshiring.";
-};
-
 export default function App() {
+  const stateRef = useRef(null);
+  const queue = useRef(Promise.resolve());
+  const [saving, setSaving] = useState(false);
   const [state, setState] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const fetchState = async (token) => {
-    try {
-      const response = await fetch(apiUrl("/api/state"), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) {
-        throw new Error("State unavailable");
-      }
-      const data = await response.json();
-      setState(data.state || data);
-      if (data.user) setSession(data.user);
-      setLoading(false);
-    } catch (error) {
-      setError(getConnectionError(error));
-      setLoading(false);
-    }
+  const acceptState = (next) => {
+    stateRef.current = next;
+    setState(next);
   };
-
+  const fetchState = async () => {
+    setLoading(true); setError("");
+    try {
+      const data = await request("/api/state");
+      acceptState(data.state); setSession(data.user);
+    } catch (error) {
+      if (error.status === 401) localStorage.removeItem("bbl-crm-token");
+      setError(error.message);
+    } finally { setLoading(false); }
+  };
   useEffect(() => {
-    const token = localStorage.getItem("bbl-crm-token");
-    if (token) {
-      fetchState(token);
-    } else {
-      setLoading(false);
-    }
+    if (localStorage.getItem("bbl-crm-token")) fetchState();
+    else setLoading(false);
   }, []);
 
+  useEffect(() => {
+    if (!session || saving) return;
+    let active = true, inFlight = false;
+    const refresh = async () => {
+      if (inFlight || document.hidden) return;
+      inFlight = true;
+      try {
+        const revision = stateRef.current?.revision || 0;
+        const data = await request("/api/state", { headers: { "If-None-Match": `"${session.id}:${revision}"` } });
+        if (active && data?.state && (data.state.revision || 0) > (stateRef.current?.revision || 0)) acceptState(data.state);
+      } catch (error) {
+        if (active && error.status === 401) { localStorage.removeItem("bbl-crm-token"); setSession(null); setError("Sessiya tugadi. Qayta kiring."); }
+      } finally { inFlight = false; }
+    };
+    const timer = setInterval(refresh, 30000 + Math.floor(Math.random() * 5000));
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { active = false; clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
+  }, [session?.id, saving]);
+
   const persist = (updater) => {
-    setState((previous) => {
-      const next = typeof updater === "function" ? updater(previous) : updater;
-      const token = localStorage.getItem("bbl-crm-token");
-      if (token) {
-        fetch(apiUrl("/api/state"), {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ state: next }),
-        }).catch(() => {
-          setError("Ma'lumotlar serverga saqlanmadi. Server ishlayotganini tekshiring.");
-        });
-      }
-      return next;
+    const operation = queue.current.then(async () => {
+      setSaving(true); setError("");
+      try {
+        const previous = stateRef.current;
+        const next = typeof updater === "function" ? updater(previous) : updater;
+        const changes = stateChanges(previous, next);
+        if (!changes.length) return true;
+        const data = await request("/api/state", { method: "PATCH", body: { changes } });
+        acceptState(data.state);
+        return true;
+      } catch (error) { setError(error.message); return false; }
+      finally { setSaving(false); }
     });
+    queue.current = operation.catch(() => {});
+    return operation;
+  };
+  const saveSale = (input) => {
+    const operation = queue.current.then(async () => {
+      setSaving(true);
+      try {
+        const data = await request("/api/sales", { method: "POST", body: input });
+        acceptState(data.state);
+        return data.state;
+      } finally { setSaving(false); }
+    });
+    queue.current = operation.catch(() => {});
+    return operation;
   };
 
   const handleLogin = async (form) => {
@@ -83,21 +94,14 @@ export default function App() {
         pass: form?.pass ?? form?.password ?? "",
       };
 
-      const response = await fetch(apiUrl("/api/login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Login failed");
-      }
+      const data = await request("/api/login", { method: "POST", body: payload, timeout: 45000 });
       localStorage.setItem("bbl-crm-token", data.token);
       setSession(data.user);
-      setState(data.state || null);
+      stateRef.current = data.state || null;
+      setState(stateRef.current);
       sendTelegramMessage(`✅ CRM tizimga kirdi: ${data.user.name} (${data.user.phone})`);
     } catch (err) {
-      setError(getConnectionError(err) || err.message || "Login xatosi");
+      setError(err.message || "Login xatosi");
     }
   };
 
@@ -111,12 +115,7 @@ export default function App() {
     if (!confirm("Barcha ma’lumotlar serverdan tozalab, yangi boshlang'ich holatga qaytariladi. Davom etilsinmi?")) return;
     const token = localStorage.getItem("bbl-crm-token");
     try {
-      const response = await fetch(apiUrl("/api/reset"), {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) throw new Error("Reset failed");
-      const data = await response.json();
+      const data = await request("/api/reset", { method: "POST" });
       setState(data.state);
       setSession(null);
       localStorage.removeItem("bbl-crm-token");
@@ -130,7 +129,7 @@ export default function App() {
     return (
       <>
         <Login users={state?.users || [{ role: "boss", phone: "beshbola.hr", year: "1122334411" }]} onLogin={handleLogin} />
-        {error && <div className="firebase-error">{error}</div>}
+        {error && <div className="firebase-error" role="alert">{error} {localStorage.getItem("bbl-crm-token") && <button className="btn" onClick={fetchState}>Qayta yuklash</button>}</div>}
         {state && (
           <div style={{ textAlign: "center", marginTop: -20 }}>
             <button className="btn btn-sm" onClick={handleReset} style={{ opacity: 0.7 }}>↻ Boshlang'ich ma'lumotlarni tiklash</button>
@@ -146,11 +145,12 @@ export default function App() {
 
   return (
     <>
-      {error && <div className="firebase-error">{error}</div>}
+      {error && <div className="firebase-error" role="alert">{error} {localStorage.getItem("bbl-crm-token") && <button className="btn" onClick={fetchState}>Qayta yuklash</button>}</div>}
+      {saving && <div className="save-banner" role="status">Serverga saqlanmoqda...</div>}
       <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout}>
-        {liveSession.role === "boss" && <BossDashboard state={state} persist={persist} session={liveSession} firebaseMode={false} />}
-        {liveSession.role === "admin" && <AdminDashboard state={state} persist={persist} session={liveSession} />}
-        {liveSession.role === "employee" && <EmployeeDashboard state={state} persist={persist} session={liveSession} />}
+        {liveSession.role === "boss" && <BossDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} firebaseMode={false} />}
+        {liveSession.role === "admin" && <AdminDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
+        {liveSession.role === "employee" && <EmployeeDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
       </Shell>
     </>
   );

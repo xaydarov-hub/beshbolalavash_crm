@@ -1,10 +1,11 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
+import EmployeeHistory from "../EmployeeHistory.jsx";
 import React, { useState } from "react";
 import { uid, fmt } from "../../lib/utils.js";
 import { SALARY_TYPES } from "../../lib/salary.js";
 import { logAction } from "../../lib/db.js";
 import { computeEmployeeReport } from "../../lib/salary.js";
 import { todayISO, monthKey } from "../../lib/utils.js";
-import { createFirebaseEmployee } from "../../lib/firebaseApi.js";
 
 const POSITIONS = ["Ofitsiant", "Kassir", "Oshpaz", "Kuryer (Zim-Zim)", "Tozalovchi", "Filial admini", "Boshqa"];
 
@@ -13,16 +14,19 @@ export default function Employees({ state, persist, session, firebaseMode }) {
     name: "", phone: "", year: "", password: "", workStart: "08:00", workEnd: "17:00", branchId: state.branches[0]?.id || "",
     role: "employee", position: POSITIONS[0], salaryType: "oylik", rate: "", email: "", temporaryPassword: "",
   });
+  const [search, setSearch] = useState("");
   const [created, setCreated] = useState(null);
   const [profileId, setProfileId] = useState(null);
 
   const addUser = async () => {
     if (!form.name.trim() || !form.phone.trim() || (!firebaseMode && !form.password.trim())) return;
+    if (!Number.isFinite(Number(form.rate)) || Number(form.rate) < 0 || (form.salaryType === "foiz" && Number(form.rate) > 100)) { alert("Stavkani to‘g‘ri kiriting. Foiz 0–100 oralig‘ida bo‘lishi kerak."); return; }
     const phone = form.phone.replace(/\D/g, "");
     if (state.users.some((u) => u.phone.replace(/\D/g, "") === phone)) { alert("Bu raqam bilan foydalanuvchi mavjud."); return; }
     if (firebaseMode) {
       if (!form.email.trim() || form.temporaryPassword.length < 8) { alert("Xodimning emaili va kamida 8 belgili vaqtinchalik parolini kiriting."); return; }
       try {
+        const { createFirebaseEmployee } = await import("../../lib/firebaseApi.js");
         const profile = await createFirebaseEmployee({ ...form, phone, temporaryPassword: form.temporaryPassword, hireDate: todayISO() });
         setCreated(profile);
         setForm({ ...form, name: "", phone: "", year: "", email: "", temporaryPassword: "", rate: "" });
@@ -40,10 +44,11 @@ export default function Employees({ state, persist, session, firebaseMode }) {
       rate: parseFloat(form.rate) || 0,
       hireDate: todayISO(), firstLogin: true,
     };
-    persist((s) => logAction(
+    const ok = await persist((s) => logAction(
       { ...s, users: [...s.users, newUser] },
       session.name, `Yangi ${form.role === "admin" ? "admin" : "xodim"} qo'shdi: ${newUser.name}.`
     ));
+    if (!ok) return;
     setCreated(newUser);
     setForm({ ...form, name: "", phone: "", year: "", password: "", rate: "" });
   };
@@ -61,7 +66,7 @@ export default function Employees({ state, persist, session, firebaseMode }) {
   return (
     <div>
       {profile ? (
-        <EmployeeProfile state={state} emp={profile} onBack={() => setProfileId(null)} />
+        <EmployeeProfile state={state} persist={persist} session={session} emp={profile} onBack={() => setProfileId(null)} />
       ) : (
         <>
           <div className="card card-pad section-gap">
@@ -75,9 +80,9 @@ export default function Employees({ state, persist, session, firebaseMode }) {
                 <input className="input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Xodimga beriladigan parol" /></label>}
               {!firebaseMode && <>
                 <label className="field"><div className="label">Ish boshlanishi (24 soat)</div>
-                  <input className="input" type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" value={form.workStart} onChange={(e) => setForm({ ...form, workStart: e.target.value })} placeholder="08:00" /></label>
+                  <input className="input" type="time" value={form.workStart} onChange={(e) => setForm({ ...form, workStart: e.target.value })} placeholder="08:00" /></label>
                 <label className="field"><div className="label">Ish tugashi (24 soat)</div>
-                  <input className="input" type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" value={form.workEnd} onChange={(e) => setForm({ ...form, workEnd: e.target.value })} placeholder="17:00" /></label>
+                  <input className="input" type="time" value={form.workEnd} onChange={(e) => setForm({ ...form, workEnd: e.target.value })} placeholder="17:00" /></label>
               </>}
               {firebaseMode && <>
                 <label className="field"><div className="label">Xodim emaili (login)</div>
@@ -125,14 +130,15 @@ export default function Employees({ state, persist, session, firebaseMode }) {
             )}
           </div>
 
-          <div className="table-wrap">
+          <label className="field">Xodimni qidirish<input type="search" className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ism yoki telefon" /></label>
+          <ResponsiveTable>
             <div className="trow thead" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 0.7fr 40px" }}>
               <div>Ism</div><div>Login</div><div>Filial</div><div>Lavozim</div><div>Maosh turi</div><div>Stavka</div><div></div>
             </div>
-            {state.users.filter((u) => u.role !== "boss").map((u) => (
+            {state.users.filter((u) => u.role !== "boss" && `${u.name} ${u.phone}`.toLowerCase().includes(search.toLowerCase())).map((u) => (
               <div key={u.id} className="trow" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 0.7fr 40px", cursor: "pointer" }}
-                onClick={() => setProfileId(u.id)}>
-                <div>{u.name}</div>
+                >
+                <button className="btn" onClick={() => setProfileId(u.id)}>{u.name}</button>
                 <div className="muted">{u.phone}</div>
                 <div className="muted" style={{ fontSize: 12 }}>{state.branches.find((b) => b.id === u.branchId)?.name || "—"}</div>
                 <div>{u.position}</div>
@@ -141,14 +147,21 @@ export default function Employees({ state, persist, session, firebaseMode }) {
                 <button className="btn-icon" onClick={(e) => { e.stopPropagation(); removeUser(u); }}>🗑</button>
               </div>
             ))}
-          </div>
+          </ResponsiveTable>
         </>
       )}
     </div>
   );
 }
 
-function EmployeeProfile({ state, emp, onBack }) {
+function EmployeeProfile({ state, emp, onBack, persist, session }) {
+  const [salaryType, setSalaryType] = useState(emp.salaryType);
+  const [rate, setRate] = useState(String(emp.rate));
+  const updateSalary = () => {
+    const value = Number(rate);
+    if (!rate.trim() || !Number.isFinite(value) || value < 0 || (salaryType === "foiz" && value > 100)) { alert("Stavkani to‘g‘ri kiriting. Foiz 0–100 oralig‘ida."); return; }
+    persist(current => logAction({ ...current, users: current.users.map(u => u.id === emp.id ? { ...u, salaryType, rate: value } : u) }, session.name, `${emp.name}: maosh turi ${salaryType}, stavka ${value}.`));
+  };
   const month = monthKey(todayISO());
   const r = computeEmployeeReport(state, emp.id, month);
   const branch = state.branches.find((b) => b.id === emp.branchId);
@@ -160,6 +173,12 @@ function EmployeeProfile({ state, emp, onBack }) {
       <button className="btn btn-sm" style={{ marginBottom: 16 }} onClick={onBack}>← Orqaga</button>
       <div className="card card-pad section-gap">
         <h2 style={{ fontSize: 20, marginBottom: 4 }}>{emp.name}</h2>
+        <div className="grid grid-2">
+          <label className="field">Maosh turi<select className="input" value={salaryType} onChange={e => setSalaryType(e.target.value)}>{SALARY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
+          <label className="field">{salaryType === "foiz" ? "Savdodan foiz (%)" : "Stavka (so‘m)"}<input type="number" inputMode="decimal" className="input" min="0" max={salaryType === "foiz" ? 100 : undefined} step="any" value={rate} onChange={e => setRate(e.target.value)} /></label>
+        </div>
+        <button className="btn btn-primary" onClick={updateSalary}>Maosh sozlamalarini saqlash</button>
+        <p className="hint">Oldin kiritilgan kunlik savdolarning foiz stavkasi saqlanadi. Yangi stavka keyingi yozuvlarga qo‘llanadi.</p>
         <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>{emp.position} · {branch?.name}</div>
         <div className="grid grid-4">
           <div><div className="muted" style={{ fontSize: 12 }}>📞 Telefon</div><div>{emp.phone}</div></div>
@@ -175,7 +194,7 @@ function EmployeeProfile({ state, emp, onBack }) {
         <div className="stat-card"><div className="label">💰 Bu oy maosh</div><div className="value accent">{fmt(r.total)}</div></div>
       </div>
       <h3 className="section-title">📝 Izohlar / o'zgarishlar tarixi</h3>
-      <div className="table-wrap">
+      <ResponsiveTable>
         {r.adjRecords.length === 0 && <div className="empty">Yozuv yo'q.</div>}
         {[...r.adjRecords].reverse().map((a) => (
           <div key={a.id} className="trow" style={{ gridTemplateColumns: "1fr 1fr 2fr auto" }}>
@@ -187,7 +206,7 @@ function EmployeeProfile({ state, emp, onBack }) {
             <span>{a.type === "jarima" ? "-" : "+"}{fmt(a.amount)}</span>
           </div>
         ))}
-      </div>
+      </ResponsiveTable>
     </div>
   );
 }

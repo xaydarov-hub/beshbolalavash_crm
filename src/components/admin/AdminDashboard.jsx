@@ -1,10 +1,14 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
+import SalesPanel from "../SalesPanel.jsx";
+import EmployeeHistory from "../EmployeeHistory.jsx";
 import React, { useState } from "react";
 import { todayISO, fmtHours, hoursBetween, uid, isLate } from "../../lib/utils.js";
 import { logAction } from "../../lib/db.js";
 import EvaluationPanel from "../EvaluationPanel.jsx";
 import EmployeeTransfer from "../EmployeeTransfer.jsx";
 
-export default function AdminDashboard({ state, persist, session }) {
+export default function AdminDashboard({ state, persist, session, saveSale }) {
+  const [historyId, setHistoryId] = useState("");
   const [tab, setTab] = useState("attendance");
   const [date, setDate] = useState(todayISO());
   const [showAbsentOnly, setShowAbsentOnly] = useState(false);
@@ -47,10 +51,14 @@ export default function AdminDashboard({ state, persist, session }) {
   return (
     <div>
       <div className="tabs">
+        <button className={`tab-btn ${tab === "sales" ? "active" : ""}`} onClick={() => setTab("sales")}>Kunlik savdo</button>
+        <button className={`tab-btn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>Xodim tarixi</button>
         <button className={`tab-btn ${tab === "attendance" ? "active" : ""}`} onClick={() => setTab("attendance")}>🕐 Davomat</button>
         <button className={`tab-btn ${tab === "evaluations" ? "active" : ""}`} onClick={() => setTab("evaluations")}>⭐ Ball baholash</button>
         <button className={`tab-btn ${tab === "transfer" ? "active" : ""}`} onClick={() => setTab("transfer")}>↔️ Xodim ko'chirish</button>
       </div>
+      {tab === "history" && <><label className="field">Xodim<select className="input" value={historyId} onChange={e => setHistoryId(e.target.value)}><option value="">Xodimni tanlang</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>{historyId && <EmployeeHistory state={state} employeeId={historyId} />}</>}
+      {tab === "sales" && <SalesPanel state={state} session={session} saveSale={saveSale} />}
       {tab === "evaluations" && <EvaluationPanel state={state} persist={persist} session={session} employeeScope={scopedEmployees} />}
       {tab === "transfer" && <EmployeeTransfer state={state} persist={persist} session={session} employeeScope={scopedEmployees} />}
       {tab === "attendance" && <>
@@ -65,7 +73,7 @@ export default function AdminDashboard({ state, persist, session }) {
         </span>
       </div>
 
-      <div className="table-wrap">
+      <ResponsiveTable>
         <div className="trow thead" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr" }}>
           <div>Xodim</div><div>Holati</div><div>Keldi</div><div>Ketdi</div><div>Ish vaqti</div>
         </div>
@@ -82,16 +90,16 @@ export default function AdminDashboard({ state, persist, session }) {
                 <option value="tatil">Ta'til</option>
                 <option value="kasal">Kasal</option>
               </select>
-              <input type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" className="input" style={{ padding: "5px 8px" }} placeholder="08:00" disabled={r.status !== "keldi"}
+              <input type="time" className="input" style={{ padding: "5px 8px" }} placeholder="08:00" disabled={r.status !== "keldi"}
                 value={r.checkIn} onChange={(e) => updateStatus(emp, { checkIn: e.target.value })} />
-              <input type="text" inputMode="numeric" pattern="[0-9]{2}:[0-9]{2}" maxLength="5" className="input" style={{ padding: "5px 8px" }} placeholder="17:00" disabled={r.status !== "keldi"}
+              <input type="time" className="input" style={{ padding: "5px 8px" }} placeholder="17:00" disabled={r.status !== "keldi"}
                 value={r.checkOut} onChange={(e) => updateStatus(emp, { checkOut: e.target.value })} />
               <div className="muted" style={{ fontSize: 12.5 }}>{r.status === "keldi" && r.checkIn && r.checkOut ? fmtHours(hrs) : "—"}</div>
             </div>
           );
         })}
         {rows.length === 0 && <div className="empty">Bu filialda xodim yo'q.</div>}
-      </div>
+      </ResponsiveTable>
       </>}
     </div>
   );

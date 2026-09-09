@@ -1,11 +1,14 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
+import SalesPanel from "../SalesPanel.jsx";
+import EmployeeHistory from "../EmployeeHistory.jsx";
 import React, { useState } from "react";
 import { fmt, todayISO, monthKey, fmtHours } from "../../lib/utils.js";
 import { computeEmployeeReport, SALARY_TYPES } from "../../lib/salary.js";
 import { uid } from "../../lib/utils.js";
 
-export default function EmployeeDashboard({ state, persist, session }) {
+export default function EmployeeDashboard({ state, persist, session, saveSale }) {
   const [tab, setTab] = useState("dashboard");
-  const month = monthKey(todayISO());
+  const [month, setMonth] = useState(monthKey(todayISO()));
   const r = computeEmployeeReport(state, session.id, month);
   const branch = state.branches.find((b) => b.id === session.branchId);
 
@@ -14,13 +17,18 @@ export default function EmployeeDashboard({ state, persist, session }) {
   return (
     <div>
       <div className="tabs">
+        <button className={`tab-btn ${tab === "sales" ? "active" : ""}`} onClick={() => setTab("sales")}>Kunlik savdo</button>
+        <button className={`tab-btn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>Xodim tarixi</button>
         <button className={`tab-btn ${tab === "dashboard" ? "active" : ""}`} onClick={() => setTab("dashboard")}>🏠 Bosh sahifa</button>
         <button className={`tab-btn ${tab === "attendance" ? "active" : ""}`} onClick={() => setTab("attendance")}>🕐 Davomat tarixi</button>
         <button className={`tab-btn ${tab === "leaves" ? "active" : ""}`} onClick={() => setTab("leaves")}>🏖 Ta'til so'rash</button>
         <button className={`tab-btn ${tab === "points" ? "active" : ""}`} onClick={() => setTab("points")}>⭐ Ballarim</button>
         <button className={`tab-btn ${tab === "profile" ? "active" : ""}`} onClick={() => setTab("profile")}>👤 Profil</button>
       </div>
+      {tab === "sales" && <SalesPanel state={state} session={session} saveSale={saveSale} />}
 
+      {tab === "history" && <EmployeeHistory state={state} employeeId={session.id} />}
+      <label className="field">Hisobot oyi<input type="month" className="input" value={month} onChange={e => setMonth(e.target.value)} /></label>
       {tab === "dashboard" && (
         <div>
           <p style={{ fontSize: 15, marginBottom: 18 }}>Salom, {session.name} 👋</p>
@@ -37,7 +45,7 @@ export default function EmployeeDashboard({ state, persist, session }) {
           </div>
 
           <h3 className="section-title">📝 Jarima va bonuslar tarixi</h3>
-          <div className="table-wrap">
+          <ResponsiveTable>
             {r.adjRecords.length === 0 && <div className="empty">Bu oyda yozuv yo'q.</div>}
             {[...r.adjRecords].reverse().map((a) => (
               <div key={a.id} className="trow" style={{ gridTemplateColumns: "1fr 2fr auto" }}>
@@ -48,12 +56,12 @@ export default function EmployeeDashboard({ state, persist, session }) {
                 </span>
               </div>
             ))}
-          </div>
+          </ResponsiveTable>
         </div>
       )}
 
       {tab === "attendance" && (
-        <div className="table-wrap">
+        <ResponsiveTable>
           <div className="trow thead" style={{ gridTemplateColumns: "0.8fr 1fr 1fr" }}>
             <div>Sana</div><div>Holati</div><div>Vaqt</div>
           </div>
@@ -70,7 +78,7 @@ export default function EmployeeDashboard({ state, persist, session }) {
             </div>
           ))}
           {r.attRecords.length === 0 && <div className="empty">Ma'lumot yo'q.</div>}
-        </div>
+        </ResponsiveTable>
       )}
 
       {tab === "leaves" && <LeaveRequestForm state={state} persist={persist} session={session} myLeaves={myLeaves} />}
@@ -80,19 +88,19 @@ export default function EmployeeDashboard({ state, persist, session }) {
           <div className="grid grid-3 section-gap">
             <div className="stat-card"><div className="label">Bu oy jami ball</div><div className="value accent">{r.evaluation.total}</div></div>
             <div className="stat-card"><div className="label">Baholangan kunlar</div><div className="value">{r.evaluation.count}</div></div>
-            <div className="stat-card"><div className="label">O'rtacha baho</div><div className="value green">{r.evaluation.count ? r.evaluation.average.toFixed(1) : "—"} / 100</div></div>
+            <div className="stat-card"><div className="label">O'rtacha baho</div><div className="value green">{r.evaluation.count ? r.evaluation.average.toFixed(1) : "—"} / 5</div></div>
           </div>
-          <div className="table-wrap">
+          <ResponsiveTable>
             <div className="trow thead" style={{ gridTemplateColumns: "0.8fr 0.6fr 2fr 1fr" }}>
               <div>Sana</div><div>Ball</div><div>Izoh</div><div>Baholagan</div>
             </div>
             {r.evaluation.records.length === 0 && <div className="empty">Bu oy uchun hali baho qo'yilmagan.</div>}
             {[...r.evaluation.records].reverse().map((record) => (
               <div key={record.id} className="trow" style={{ gridTemplateColumns: "0.8fr 0.6fr 2fr 1fr" }}>
-                <div>{record.date}</div><div><b>{record.total ?? 0}</b> / 100</div><div className="muted">{record.comment || "—"}</div><div className="muted">{record.assessedBy}</div>
+                <div>{record.date}</div><div><b>{(record.total ?? 0).toFixed(1)}</b> / 5</div><div className="muted">{record.comment || "—"}</div><div className="muted">{record.assessedBy}</div>
               </div>
             ))}
-          </div>
+          </ResponsiveTable>
         </div>
       )}
 
@@ -147,7 +155,7 @@ function LeaveRequestForm({ persist, session, myLeaves }) {
       </div>
 
       <h3 className="section-title">Mening so'rovlarim</h3>
-      <div className="table-wrap">
+      <ResponsiveTable>
         {myLeaves.length === 0 && <div className="empty">Hali so'rov yo'q.</div>}
         {[...myLeaves].reverse().map((l) => (
           <div key={l.id} className="trow" style={{ gridTemplateColumns: "0.7fr 1fr 1.4fr 1fr" }}>
@@ -159,7 +167,7 @@ function LeaveRequestForm({ persist, session, myLeaves }) {
             </span>
           </div>
         ))}
-      </div>
+      </ResponsiveTable>
     </div>
   );
 }

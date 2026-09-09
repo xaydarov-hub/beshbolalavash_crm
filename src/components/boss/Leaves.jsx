@@ -1,3 +1,4 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
 import React from "react";
 import { logAction } from "../../lib/db.js";
 import { addDays, uid } from "../../lib/utils.js";
@@ -31,7 +32,7 @@ export default function Leaves({ state, persist, session }) {
   };
 
   return (
-    <div className="table-wrap">
+    <ResponsiveTable>
       <div className="trow thead" style={{ gridTemplateColumns: "1.1fr 0.7fr 1fr 1.4fr 1fr" }}>
         <div>Xodim</div><div>Turi</div><div>Sana</div><div>Sabab</div><div>Holati</div>
       </div>
@@ -59,6 +60,6 @@ export default function Leaves({ state, persist, session }) {
           </div>
         );
       })}
-    </div>
+    </ResponsiveTable>
   );
 }

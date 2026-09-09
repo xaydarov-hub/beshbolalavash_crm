@@ -1,3 +1,4 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
 import React from "react";
 import { fmt, todayISO, monthKey, addDays } from "../../lib/utils.js";
 import { computeAllReports } from "../../lib/salary.js";
@@ -30,14 +31,7 @@ export default function Analytics({ state }) {
     mostLate && mostLate.lateDays > 0 ? { icon: "⚠️", text: `Eng ko'p kechikkan: ${mostLate.emp.name} — ${mostLate.lateDays} marta.` } : null,
   ].filter(Boolean);
 
-  // Rating score: attendance rate + low lateness + bonus/fine balance
-  const scored = thisReports.map((r) => {
-    const totalDays = r.worked + r.absentDays + r.leaveDays || 1;
-    const attScore = (r.worked / totalDays) * 60;
-    const lateScore = Math.max(0, 20 - r.lateDays * 4);
-    const adjScore = Math.max(0, Math.min(20, 10 + (r.bonuses - r.fines) / 50000));
-    return { emp: r.emp, score: Math.round(attScore + lateScore + adjScore) };
-  }).sort((a, b) => b.score - a.score);
+  const scored = thisReports.filter(r => r.evaluation.count).map(r => ({ emp: r.emp, score: r.evaluation.average.toFixed(1) })).sort((a,b) => b.score - a.score);
 
   const medals = ["🥇", "🥈", "🥉"];
 
@@ -51,15 +45,15 @@ export default function Analytics({ state }) {
       </div>
 
       <h3 className="section-title">🏆 Xodimlar reytingi (bu oy)</h3>
-      <div className="table-wrap">
+      <ResponsiveTable>
         {scored.map((s, idx) => (
           <div key={s.emp.id} className="rank-item">
             <div className="rank-medal">{medals[idx] || idx + 1}</div>
             <div style={{ flex: 1 }}>{s.emp.name} <span className="muted" style={{ fontSize: 12 }}>· {s.emp.position}</span></div>
-            <div style={{ fontWeight: 700 }}>{s.score} ball</div>
+            <div style={{ fontWeight: 700 }}>{s.score} / 5 ball</div>
           </div>
         ))}
-      </div>
+      </ResponsiveTable>
     </div>
   );
 }

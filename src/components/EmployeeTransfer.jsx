@@ -23,11 +23,11 @@ export default function EmployeeTransfer({ state, persist, session, employeeScop
     if (!availableBranches.some((branch) => branch.id === branchId)) setBranchId(availableBranches[0]?.id || "");
   }, [employeeId, branchId, availableBranches]);
 
-  const transfer = () => {
+  const transfer = async () => {
     if (!employee || !branchId) return;
     const from = state.branches.find((branch) => branch.id === employee.branchId);
     const to = state.branches.find((branch) => branch.id === branchId);
-    persist((current) => {
+    const ok = await persist((current) => {
       const transferRecord = { id: uid(), employeeId: employee.id, fromBranchId: employee.branchId, toBranchId: branchId, effectiveDate, by: session.name };
       return logAction(
         {
@@ -39,7 +39,7 @@ export default function EmployeeTransfer({ state, persist, session, employeeScop
         `${employee.name}ni ${from?.name || "noma'lum filial"}dan ${to?.name || "noma'lum filial"}ga ${effectiveDate}dan ko'chirdi.`
       );
     });
-    setNotice(`${employee.name} ${to?.name} filialiga ko'chirildi.`);
+    if (ok) setNotice(`${employee.name} ${to?.name} filialiga ko'chirildi.`);
   };
 
   if (!employees.length) return <div className="empty">Ko'chirish uchun xodim yo'q.</div>;

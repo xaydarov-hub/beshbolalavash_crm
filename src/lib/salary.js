@@ -29,7 +29,9 @@ export function computeEmployeeReport(state, employeeId, month) {
   const bonuses = adj.filter((a) => a.type === "bonus").reduce((s, a) => s + a.amount, 0);
   const fines = adj.filter((a) => a.type === "jarima").reduce((s, a) => s + a.amount, 0);
 
-  const sales = state.sales[`${employeeId}:${month}`] || 0;
+  const saleRecords = (state.dailySales || []).filter(a => a.employeeId === employeeId && monthKey(a.date) === month);
+  const legacySales = Number(state.sales?.[`${employeeId}:${month}`]) || 0;
+  const sales = legacySales + saleRecords.reduce((sum, a) => sum + a.amount, 0);
 
   let base = 0;
   const rate = emp.rate || 0;
@@ -44,7 +46,7 @@ export function computeEmployeeReport(state, employeeId, month) {
       base = rate * totalHours;
       break;
     case "foiz":
-      base = sales * (rate / 100);
+      base = Math.round(legacySales * rate / 100) + saleRecords.reduce((sum, a) => sum + Math.round(a.amount * a.rate / 100), 0);
       break;
     default:
       base = 0;
@@ -63,6 +65,8 @@ export function computeEmployeeReport(state, employeeId, month) {
     bonuses,
     fines,
     sales,
+    saleRecords,
+    legacySales,
     base,
     total,
     evaluation,

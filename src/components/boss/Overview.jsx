@@ -1,3 +1,4 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
 import React from "react";
 import { fmt, todayISO, monthKey } from "../../lib/utils.js";
 import { computeAllReports } from "../../lib/salary.js";
@@ -59,7 +60,7 @@ export default function Overview({ state }) {
       <div className="grid grid-2 section-gap">
         <div>
           <h3 className="section-title">🏢 Filiallar</h3>
-          <div className="table-wrap">
+          <ResponsiveTable>
             {state.branches.map((b) => {
               const count = employees.filter((e) => e.branchId === b.id).length;
               return (
@@ -69,7 +70,7 @@ export default function Overview({ state }) {
                 </div>
               );
             })}
-          </div>
+          </ResponsiveTable>
         </div>
         <div>
           <h3 className="section-title">🔔 Bildirishnomalar</h3>

@@ -1,3 +1,4 @@
+import ResponsiveTable from "../ResponsiveTable.jsx";
 import React, { useState } from "react";
 import { uid } from "../../lib/utils.js";
 import { logAction } from "../../lib/db.js";
@@ -31,7 +32,7 @@ export default function Branches({ state, persist, session }) {
         <input className="input" placeholder="Yangi filial nomi" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="btn btn-primary" onClick={addBranch}>➕</button>
       </div>
-      <div className="table-wrap">
+      <ResponsiveTable>
         {state.branches.map((b) => {
           const count = state.users.filter((u) => u.branchId === b.id && u.role === "employee").length;
           return (
@@ -42,7 +43,7 @@ export default function Branches({ state, persist, session }) {
             </div>
           );
         })}
-      </div>
+      </ResponsiveTable>
     </div>
   );
 }
