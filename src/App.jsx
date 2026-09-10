@@ -16,6 +16,13 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [offline, setOffline] = useState(navigator.onLine === false);
+  useEffect(() => {
+    const update = () => setOffline(navigator.onLine === false);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
+  }, []);
 
   const clearSession = () => {
     localStorage.removeItem('bbl-crm-token');
@@ -34,7 +41,7 @@ export default function App() {
     setState(next);
   };
   const fetchState = async () => {
-    setLoading(true); setError("");
+    if (!stateRef.current) setLoading(true); setError("");
     try {
       const data = await request("/api/state", { timeout: 45000 });
       if (data?.state) acceptState(data.state);
@@ -56,7 +63,7 @@ export default function App() {
     if (!session || saving) return;
     let active = true, inFlight = false;
     const refresh = async () => {
-      if (inFlight || document.hidden) return;
+      if (inFlight || document.hidden || navigator.onLine === false) return;
       inFlight = true;
       try {
         const revision = stateRef.current?.revision || 0;
@@ -66,10 +73,11 @@ export default function App() {
         if (active && error.status === 401) { localStorage.removeItem("bbl-crm-token"); setSession(null); setError("Sessiya tugadi. Qayta kiring."); }
       } finally { inFlight = false; }
     };
-    const timer = setInterval(refresh, 30000 + Math.floor(Math.random() * 5000));
+    const timer = setInterval(refresh, 8000 + Math.floor(Math.random() * 2000));
+    window.addEventListener("online", refresh);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
-    return () => { active = false; clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
+    return () => { active = false; clearInterval(timer); window.removeEventListener("online", refresh); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, [session?.id, saving]);
 
   const persist = (updater) => {
@@ -165,6 +173,8 @@ export default function App() {
       {(!Number.isInteger(state.revision) || !Array.isArray(state.dailySales)) && <div className="firebase-error" role="status">Server yangilanishi kutilmoqda. Ma’lumotlarni ko‘rishingiz mumkin; saqlash hozircha mavjud emas.</div>}
       {error && <div className="firebase-error" role="alert">{error} {localStorage.getItem("bbl-crm-token") && <button className="btn" onClick={fetchState}>Qayta yuklash</button>}</div>}
       {saving && <div className="save-banner" role="status">Serverga saqlanmoqda...</div>}
+      {offline && <div className="firebase-error" role="status">Internet aloqasi uzilgan. Aloqa tiklanganda ma’lumotlar avtomatik yangilanadi. Saqlanmagan amallarni qayta yuboring.</div>}
+      <button className="btn" disabled={offline || saving} onClick={fetchState}>Ma’lumotlarni yangilash</button>
       <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout}>
         {liveSession.role === "boss" && <BossDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} firebaseMode={false} />}
         {liveSession.role === "admin" && <AdminDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} />}

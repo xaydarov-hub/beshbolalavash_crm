@@ -71,8 +71,10 @@ function downloadReportPng({ month, reports, branches, total }) {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `bbl-hisobot-${month}.png`;
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }, "image/png");
 }
 
@@ -102,8 +104,10 @@ export default function Reports({ state, persist }) {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `maosh-hisoboti-${month}.csv`;
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
   const grand = reports.reduce((sum, report) => sum + report.total, 0);
@@ -147,7 +151,7 @@ export default function Reports({ state, persist }) {
             <div>{report.emp.name}</div>
             <div className="muted" style={{ fontSize: 12 }}>{state.branches.find((branch) => branch.id === report.emp.branchId)?.name}</div>
             <div>{report.worked}</div><div>{Math.round(report.totalHours)}</div>
-            <div>{report.emp.salaryType === "foiz" ? <input key={`${report.emp.id}-${month}-${report.sales}`} type="number" min="0" className="input" style={{ padding: "4px 6px", fontSize: 12.5 }} defaultValue={report.sales} onBlur={(event) => setSales(report.emp.id, event.target.value)} /> : "—"}</div>
+            <div>{fmt(report.sales)}</div>
             <div style={{ color: "var(--herb)" }}>{report.bonuses ? "+" + fmt(report.bonuses) : "—"}</div>
             <div style={{ color: "var(--sauce)" }}>{report.fines ? "-" + fmt(report.fines) : "—"}</div>
             <div>{report.evaluation.count ? `${report.evaluation.average.toFixed(0)} avg.` : "—"}</div>

@@ -11,6 +11,9 @@ it('employee sees only own pay, sales, history and no passwords', () => {
   expect(visible.payrollHistory[0].total).toBe(7);
 });
 it('admin sees only own branch while boss sees all sales', () => {
+  for (const session of [users[0], { role: 'boss' }]) {
+    expect(publicState(state, session).users.every(user => !user.passwordHash)).toBe(true);
+  }
   expect(publicState(state, users[0]).dailySales).toEqual([{ employeeId: 'e' }]);
   expect(publicState(state, { role: 'boss' }).dailySales).toHaveLength(2);
 });

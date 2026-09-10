@@ -1,3 +1,4 @@
+import { loginKey } from '../src/lib/identity.js';
 import { applySale } from './sales.js';
 import { migrateEvaluations, normalizeScores, evaluationTotal } from '../src/lib/evaluation.js';
 import express from 'express';
@@ -177,14 +178,14 @@ const authMiddleware = (req, res, next) => {
 
 function publicUser(user, includeSecrets = false) {
   if (!user) return null;
-  if (includeSecrets) return user;
+
   const { year, customPassword, passwordHash, ...safeUser } = user;
   return safeUser;
 }
 
 export function publicState(state, session) {
   if (session.role === 'boss') {
-    return { ...state, users: state.users.map((user) => publicUser(user, true)) };
+    return { ...state, users: state.users.map((user) => publicUser(user)) };
   }
 
   const currentUser = state.users.find((user) => user.id === session.id) || session;
@@ -198,7 +199,7 @@ export function publicState(state, session) {
 
   return {
     ...state,
-    users: visibleUsers.map(publicUser),
+    users: visibleUsers.map(user => publicUser(user)),
     dailySales: (state.dailySales || []).filter(r => visibleIds.has(r.employeeId)),
     sales: Object.fromEntries(Object.entries(state.sales || {}).filter(([key]) => [...visibleIds].some(id => key.startsWith(`${id}:`)))),
     payrollHistory: (state.payrollHistory || []).map(r => ({ ...r, employees: (r.employees || []).filter(e => visibleIds.has(e.employeeId)) })).filter(r => r.employees.length).map(r => ({ ...r, total: r.employees.reduce((sum, e) => sum + e.total, 0) })),
@@ -220,6 +221,8 @@ export async function mergeScopedState(current, next, session) {
       sales: current.sales || {},
       users: await Promise.all((next.users || []).map(async (incomingUser) => {
         const existingUser = current.users.find((user) => user.id === incomingUser.id);
+        if ((!existingUser || incomingUser.branchId !== existingUser.branchId) && incomingUser.role !== 'boss' && !next.branches.some(branch => branch.id === incomingUser.branchId)) throw Object.assign(new Error('Xodim yoki admin uchun mavjud filialni tanlang.'), { status: 400 });
+        if ((!existingUser || incomingUser.phone !== existingUser.phone) && (!loginKey(incomingUser.phone) || next.users.some(user => user.id !== incomingUser.id && loginKey(user.phone) === loginKey(incomingUser.phone)))) throw Object.assign(new Error('Login bo‘sh yoki boshqa hisobda ishlatilgan.'), { status: 400 });
         const plainPassword = incomingUser.customPassword || incomingUser.year;
         if (plainPassword) {
           const { year, customPassword, ...safeUser } = incomingUser;
@@ -280,12 +283,7 @@ app.post('/api/login', async (req, res) => {
   const password = String(body.pass ?? body.password ?? '').trim();
   if (!login || !password || login.length > 200 || password.length > 1024) return res.status(400).json({ message: 'Login va parolni tekshiring.' });
   const snapshot = store.get();
-  const user = snapshot.users.find(item => {
-    const candidate = String(item.phone || '').trim().toLowerCase();
-    if (candidate === login) return true;
-    const digits = login.replace(/\D/g, '');
-    return digits && candidate.replace(/\D/g, '') === digits;
-  });
+  const user = snapshot.users.find(item => loginKey(item.phone) === loginKey(login));
   if (!user || !await verifyPassword(password, user.passwordHash)) return res.status(401).json({ message: "Login yoki parol noto'g'ri." });
   const current = store.get();
   const liveUser = current.users.find(item => item.id === user.id);

@@ -1,3 +1,4 @@
+import { loginKey } from '../../lib/identity.js';
 import ResponsiveTable from "../ResponsiveTable.jsx";
 import EmployeeHistory from "../EmployeeHistory.jsx";
 import React, { useState } from "react";
@@ -21,8 +22,9 @@ export default function Employees({ state, persist, session, firebaseMode }) {
   const addUser = async () => {
     if (!form.name.trim() || !form.phone.trim() || (!firebaseMode && !form.password.trim())) return;
     if (!Number.isFinite(Number(form.rate)) || Number(form.rate) < 0 || (form.salaryType === "foiz" && Number(form.rate) > 100)) { alert("Stavkani to‘g‘ri kiriting. Foiz 0–100 oralig‘ida bo‘lishi kerak."); return; }
-    const phone = form.phone.replace(/\D/g, "");
-    if (state.users.some((u) => u.phone.replace(/\D/g, "") === phone)) { alert("Bu raqam bilan foydalanuvchi mavjud."); return; }
+    const phone = loginKey(form.phone);
+    if (!state.branches.some(b => b.id === form.branchId)) { alert("Filialni tanlang."); return; }
+    if (state.users.some((u) => loginKey(u.phone) === phone)) { alert("Bu raqam bilan foydalanuvchi mavjud."); return; }
     if (firebaseMode) {
       if (!form.email.trim() || form.temporaryPassword.length < 8) { alert("Xodimning emaili va kamida 8 belgili vaqtinchalik parolini kiriting."); return; }
       try {
@@ -155,6 +157,7 @@ export default function Employees({ state, persist, session, firebaseMode }) {
 }
 
 function EmployeeProfile({ state, emp, onBack, persist, session }) {
+  const [branchId, setBranchId] = useState(emp.branchId || '');
   const [salaryType, setSalaryType] = useState(emp.salaryType);
   const [rate, setRate] = useState(String(emp.rate));
   const [passwordDraft, setPasswordDraft] = useState(emp.customPassword || emp.year || "");
@@ -183,6 +186,9 @@ function EmployeeProfile({ state, emp, onBack, persist, session }) {
       <button className="btn btn-sm" style={{ marginBottom: 16 }} onClick={onBack}>← Orqaga</button>
       <div className="card card-pad section-gap">
         <h2 style={{ fontSize: 20, marginBottom: 4 }}>{emp.name}</h2>
+        <label className="field">Filial<select className="input" value={branchId} onChange={e => setBranchId(e.target.value)}>{state.branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+        <button className="btn" onClick={() => persist(current => logAction({ ...current, users: current.users.map(u => u.id === emp.id ? { ...u, branchId } : u) }, session.name, `${emp.name}: filial yangilandi.`))}>Filialni saqlash</button>
+        <p className="hint">Admin o‘z filialidagi xodimlarni ko‘radi. Admin va xodim filialini bir xil belgilang.</p>
         <div className="grid grid-2">
           <label className="field">Maosh turi<select className="input" value={salaryType} onChange={e => setSalaryType(e.target.value)}>{SALARY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
           <label className="field">{salaryType === "foiz" ? "Savdodan foiz (%)" : "Stavka (so‘m)"}<input type="number" inputMode="decimal" className="input" min="0" max={salaryType === "foiz" ? 100 : undefined} step="any" value={rate} onChange={e => setRate(e.target.value)} /></label>
@@ -217,6 +223,7 @@ function EmployeeProfile({ state, emp, onBack, persist, session }) {
         <div className="stat-card"><div className="label">💰 Bu oy maosh</div><div className="value accent">{fmt(r.total)}</div></div>
       </div>
       <h3 className="section-title">📝 Izohlar / o'zgarishlar tarixi</h3>
+      <EmployeeHistory state={state} employeeId={emp.id} />
       <ResponsiveTable>
         {r.adjRecords.length === 0 && <div className="empty">Yozuv yo'q.</div>}
         {[...r.adjRecords].reverse().map((a) => (

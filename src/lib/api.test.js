@@ -1,6 +1,14 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { request, requireCurrentApi } from './api.js';
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+it('does not send requests or discard the session while offline', async () => {
+  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+  global.fetch = vi.fn();
+  localStorage.setItem('bbl-crm-token', 'valid-session');
+  await expect(request('/api/state')).rejects.toMatchObject({ offline: true });
+  expect(fetch).not.toHaveBeenCalled();
+  expect(localStorage.getItem('bbl-crm-token')).toBe('valid-session');
+});
 it('handles unchanged state without parsing an empty response', async () => {
   const json = vi.fn();
   global.fetch = vi.fn().mockResolvedValue({ status: 304, json });

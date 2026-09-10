@@ -28,6 +28,7 @@ async function parseApiResponse(response) {
 }
 
 export async function request(path, { method = 'GET', body, headers = {}, timeout = 25000, ...options } = {}) {
+  if (navigator.onLine === false) throw Object.assign(new Error('Internet aloqasi uzilgan. Aloqa tiklangach qayta urinib ko‘ring.'), { offline: true });
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
