@@ -1,242 +1,99 @@
-import { loginKey } from '../../lib/identity.js';
-import ResponsiveTable from "../ResponsiveTable.jsx";
-import EmployeeHistory from "../EmployeeHistory.jsx";
 import React, { useState } from "react";
-import { uid, fmt } from "../../lib/utils.js";
+import { loginKey } from "../../lib/identity.js";
+import { useSaveAction } from "../../lib/useSaveAction.js";
+import { uid, todayISO, fmt } from "../../lib/utils.js";
 import { SALARY_TYPES } from "../../lib/salary.js";
 import { logAction } from "../../lib/db.js";
-import { computeEmployeeReport } from "../../lib/salary.js";
-import { todayISO, monthKey } from "../../lib/utils.js";
+import EmployeeHistory from "../EmployeeHistory.jsx";
+import ResponsiveTable from "../ResponsiveTable.jsx";
 
-const POSITIONS = ["Ofitsiant", "Kassir", "Oshpaz", "Kuryer (Zim-Zim)", "Tozalovchi", "Filial admini", "Boshqa"];
+const initialForm = () => ({ name: "", phone: "", password: "", branchId: "", role: "employee", position: "Ofitsiant", salaryType: "oylik", rate: "", workStart: "08:00", workEnd: "17:00", hireDate: todayISO() });
 
-export default function Employees({ state, persist, session, firebaseMode }) {
-  const [form, setForm] = useState({
-    name: "", phone: "", year: "", password: "", workStart: "08:00", workEnd: "17:00", branchId: state.branches[0]?.id || "",
-    role: "employee", position: POSITIONS[0], salaryType: "oylik", rate: "", email: "", temporaryPassword: "",
-  });
+export default function Employees({ state, persist, session }) {
   const [search, setSearch] = useState("");
-  const [created, setCreated] = useState(null);
-  const [profileId, setProfileId] = useState(null);
-
-  const addUser = async () => {
-    if (!form.name.trim() || !form.phone.trim() || (!firebaseMode && !form.password.trim())) return;
-    if (!Number.isFinite(Number(form.rate)) || Number(form.rate) < 0 || (form.salaryType === "foiz" && Number(form.rate) > 100)) { alert("Stavkani to‘g‘ri kiriting. Foiz 0–100 oralig‘ida bo‘lishi kerak."); return; }
-    const phone = loginKey(form.phone);
-    if (!state.branches.some(b => b.id === form.branchId)) { alert("Filialni tanlang."); return; }
-    if (state.users.some((u) => loginKey(u.phone) === phone)) { alert("Bu raqam bilan foydalanuvchi mavjud."); return; }
-    if (firebaseMode) {
-      if (!form.email.trim() || form.temporaryPassword.length < 8) { alert("Xodimning emaili va kamida 8 belgili vaqtinchalik parolini kiriting."); return; }
-      try {
-        const { createFirebaseEmployee } = await import("../../lib/firebaseApi.js");
-        const profile = await createFirebaseEmployee({ ...form, phone, temporaryPassword: form.temporaryPassword, hireDate: todayISO() });
-        setCreated(profile);
-        setForm({ ...form, name: "", phone: "", year: "", email: "", temporaryPassword: "", rate: "" });
-      } catch (error) {
-        alert(error?.message || "Xodim Firebase’da yaratilmagan. Functions deploy qilinganini tekshiring.");
-      }
-      return;
-    }
-    const newUser = {
-      id: uid(), role: form.role, name: form.name.trim(), phone, year: form.password.trim(), customPassword: form.password.trim(),
-      workStart: form.workStart, workEnd: form.workEnd,
-      branchId: form.branchId || null,
-      position: form.role === "admin" ? "Filial admini" : form.position,
-      salaryType: form.role === "employee" ? form.salaryType : "oylik",
-      rate: parseFloat(form.rate) || 0,
-      hireDate: todayISO(), firstLogin: true,
-    };
-    const ok = await persist((s) => logAction(
-      { ...s, users: [...s.users, newUser] },
-      session.name, `Yangi ${form.role === "admin" ? "admin" : "xodim"} qo'shdi: ${newUser.name}.`
-    ));
-    if (!ok) return;
-    setCreated(newUser);
-    setForm({ ...form, name: "", phone: "", year: "", password: "", rate: "" });
-  };
-
-  const removeUser = (u) => {
-    if (!confirm(`${u.name} o'chirilsinmi?`)) return;
-    persist((s) => logAction(
-      { ...s, users: s.users.filter((x) => x.id !== u.id) },
-      session.name, `${u.name}ni tizimdan o'chirdi.`
-    ));
-  };
-
-  const profile = profileId ? state.users.find((u) => u.id === profileId) : null;
-
-  return (
-    <div>
-      {profile ? (
-        <EmployeeProfile state={state} persist={persist} session={session} emp={profile} onBack={() => setProfileId(null)} />
-      ) : (
-        <>
-          <div className="card card-pad section-gap">
-            <h3 className="section-title">Yangi xodim / admin qo'shish</h3>
-            <div className="grid grid-2">
-              <label className="field"><div className="label">Ism-familiya</div>
-                <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-              <label className="field"><div className="label">Telefon raqami (login)</div>
-                <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="90XXXXXXX" /></label>
-              {!firebaseMode && <label className="field"><div className="label">Boshlang'ich parol</div>
-                <input className="input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Xodimga beriladigan parol" /></label>}
-              {!firebaseMode && <>
-                <label className="field"><div className="label">Ish boshlanishi (24 soat)</div>
-                  <input className="input" type="time" value={form.workStart} onChange={(e) => setForm({ ...form, workStart: e.target.value })} placeholder="08:00" /></label>
-                <label className="field"><div className="label">Ish tugashi (24 soat)</div>
-                  <input className="input" type="time" value={form.workEnd} onChange={(e) => setForm({ ...form, workEnd: e.target.value })} placeholder="17:00" /></label>
-              </>}
-              {firebaseMode && <>
-                <label className="field"><div className="label">Xodim emaili (login)</div>
-                  <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="xodim@email.com" /></label>
-                <label className="field"><div className="label">Vaqtinchalik parol (kamida 8 belgi)</div>
-                  <input type="password" className="input" value={form.temporaryPassword} onChange={(e) => setForm({ ...form, temporaryPassword: e.target.value })} /></label>
-              </>}
-              <label className="field"><div className="label">Filial</div>
-                <select className="input" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>
-                  {state.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select></label>
-              <label className="field"><div className="label">Rol</div>
-                <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                  <option value="employee">Oddiy xodim</option>
-                  <option value="admin">Filial admini</option>
-                </select></label>
-              {form.role === "employee" && (
-                <label className="field"><div className="label">Ish kategoriyasi (lavozim)</div>
-                  <select className="input" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })}>
-                    {POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select></label>
-              )}
-              {form.role === "employee" && (
-                <>
-                  <label className="field"><div className="label">Maosh turi</div>
-                    <select className="input" value={form.salaryType} onChange={(e) => setForm({ ...form, salaryType: e.target.value })}>
-                      {SALARY_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                    </select></label>
-                  <label className="field"><div className="label">
-                    {form.salaryType === "oylik" && "Oylik summa (so'm)"}
-                    {form.salaryType === "kunlik" && "Kunlik stavka (so'm)"}
-                    {form.salaryType === "soatlik" && "Soatlik stavka (so'm)"}
-                    {form.salaryType === "foiz" && "Foiz stavkasi (%)"}
-                  </div>
-                    <input type="number" className="input" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} /></label>
-                </>
-              )}
-            </div>
-            <button className="btn btn-primary" onClick={addUser}>➕ Qo'shish</button>
-
-            {created && (
-              <div className="hint" style={{ marginTop: 14, background: "#EFF4EB", border: "1px solid var(--herb)", borderRadius: 8, padding: "10px 14px", color: "var(--herb)" }}>
-                🔑 <b>{created.name}</b> qo'shildi. Login: <b>{firebaseMode ? created.email : created.phone}</b> · Boshlang'ich parol: <b>{firebaseMode ? "siz belgilagan vaqtinchalik parol" : (created.customPassword || created.year)}</b>{firebaseMode ? ". Xodim birinchi kirishda parolini almashtirishi kerak." : " — shu login va parol bilan kiradi."}
-              </div>
-            )}
-          </div>
-
-          <label className="field">Xodimni qidirish<input type="search" className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ism yoki telefon" /></label>
-          <ResponsiveTable>
-            <div className="trow thead" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 0.7fr 40px" }}>
-              <div>Ism</div><div>Login</div><div>Filial</div><div>Lavozim</div><div>Maosh turi</div><div>Stavka</div><div></div>
-            </div>
-            {state.users.filter((u) => u.role !== "boss" && `${u.name} ${u.phone}`.toLowerCase().includes(search.toLowerCase())).map((u) => (
-              <div key={u.id} className="trow" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 0.7fr 40px", cursor: "pointer" }}
-                >
-                <button className="btn" onClick={() => setProfileId(u.id)}>{u.name}</button>
-                <div className="muted">{u.phone}</div>
-                <div className="muted" style={{ fontSize: 12 }}>{state.branches.find((b) => b.id === u.branchId)?.name || "—"}</div>
-                <div>{u.position}</div>
-                <div className="muted" style={{ fontSize: 12 }}>{SALARY_TYPES.find((t) => t.id === u.salaryType)?.label || "—"}</div>
-                <div style={{ color: "var(--sauce)" }}>{u.salaryType === "foiz" ? `${u.rate}%` : fmt(u.rate)}</div>
-                <button className="btn-icon" onClick={(e) => { e.stopPropagation(); removeUser(u); }}>🗑</button>
-              </div>
-            ))}
-          </ResponsiveTable>
-        </>
-      )}
+  const [branchFilter, setBranchFilter] = useState("all");
+  const [showArchived, setShowArchived] = useState(false);
+  const [profileId, setProfileId] = useState("");
+  const profile = state.users.find(u => u.id === profileId);
+  if (profile) return <section>
+    <button className="btn" onClick={() => setProfileId("")}>Ro‘yxatga qaytish</button>
+    <EmployeeForm key={profile.id} state={state} persist={persist} session={session} employee={profile} />
+    <EmployeeHistory state={state} employeeId={profile.id} />
+  </section>;
+  const rows = state.users.filter(u => u.role !== "boss" && (showArchived || u.active !== false) && (branchFilter === "all" || u.branchId === branchFilter) && `${u.name} ${u.phone}`.toLowerCase().includes(search.toLowerCase()));
+  return <section>
+    <EmployeeForm state={state} persist={persist} session={session} />
+    <div className="grid grid-2">
+      <label className="field">Xodimni qidirish<input type="search" className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ism yoki telefon" /></label>
+      <label className="field">Filial bo‘yicha ko‘rish<select className="input" value={branchFilter} onChange={e => setBranchFilter(e.target.value)}><option value="all">Barcha filiallar</option>{state.branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
     </div>
-  );
+    <label><input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} /> Arxivdagi hisoblarni ham ko‘rsatish</label>
+    <p className="hint">{rows.length} ta hisob. Profilni ochib filial, login va parolni tahrirlashingiz mumkin.</p>
+    <ResponsiveTable>
+      <div className="trow thead" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr" }}><div>Ism</div><div>Login</div><div>Filial</div><div>Rol / lavozim</div><div>Stavka</div></div>
+      {rows.map(u => <div key={u.id} className="trow" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr" }}>
+        <button className="btn" onClick={() => setProfileId(u.id)}>{u.name}{u.active === false ? " (arxiv)" : ""}</button>
+        <div>{u.phone}</div><div>{state.branches.find(b => b.id === u.branchId)?.name || "Filial biriktirilmagan"}</div>
+        <div>{u.role === "admin" ? "Filial admini" : u.position}</div><div>{u.salaryType === "foiz" ? `${u.rate}%` : fmt(u.rate)}</div>
+      </div>)}
+      {!rows.length && <div className="empty">Tanlangan filtrda hisob topilmadi.</div>}
+    </ResponsiveTable>
+  </section>;
 }
 
-function EmployeeProfile({ state, emp, onBack, persist, session }) {
-  const [branchId, setBranchId] = useState(emp.branchId || '');
-  const [salaryType, setSalaryType] = useState(emp.salaryType);
-  const [rate, setRate] = useState(String(emp.rate));
-  const [passwordDraft, setPasswordDraft] = useState(emp.customPassword || emp.year || "");
-  const updateSalary = () => {
-    const value = Number(rate);
-    if (!rate.trim() || !Number.isFinite(value) || value < 0 || (salaryType === "foiz" && value > 100)) { alert("Stavkani to‘g‘ri kiriting. Foiz 0–100 oralig‘ida."); return; }
-    persist(current => logAction({ ...current, users: current.users.map(u => u.id === emp.id ? { ...u, salaryType, rate: value } : u) }, session.name, `${emp.name}: maosh turi ${salaryType}, stavka ${value}.`));
-  };
-  const updatePassword = () => {
-    const nextPassword = passwordDraft.trim();
-    if (!session || session.role !== "boss") return;
-    if (!nextPassword) { alert("Parolni kiriting."); return; }
-    persist(current => logAction({
-      ...current,
-      users: current.users.map(u => u.id === emp.id ? { ...u, customPassword: nextPassword, year: nextPassword } : u),
-    }, session.name, `${emp.name} uchun parol o'zgartirildi.`));
-  };
-  const month = monthKey(todayISO());
-  const r = computeEmployeeReport(state, emp.id, month);
-  const branch = state.branches.find((b) => b.id === emp.branchId);
-  const attPct = r.worked + r.absentDays + r.leaveDays > 0
-    ? Math.round((r.worked / (r.worked + r.absentDays + r.leaveDays)) * 100) : 0;
-
-  return (
-    <div>
-      <button className="btn btn-sm" style={{ marginBottom: 16 }} onClick={onBack}>← Orqaga</button>
-      <div className="card card-pad section-gap">
-        <h2 style={{ fontSize: 20, marginBottom: 4 }}>{emp.name}</h2>
-        <label className="field">Filial<select className="input" value={branchId} onChange={e => setBranchId(e.target.value)}>{state.branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
-        <button className="btn" onClick={() => persist(current => logAction({ ...current, users: current.users.map(u => u.id === emp.id ? { ...u, branchId } : u) }, session.name, `${emp.name}: filial yangilandi.`))}>Filialni saqlash</button>
-        <p className="hint">Admin o‘z filialidagi xodimlarni ko‘radi. Admin va xodim filialini bir xil belgilang.</p>
-        <div className="grid grid-2">
-          <label className="field">Maosh turi<select className="input" value={salaryType} onChange={e => setSalaryType(e.target.value)}>{SALARY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
-          <label className="field">{salaryType === "foiz" ? "Savdodan foiz (%)" : "Stavka (so‘m)"}<input type="number" inputMode="decimal" className="input" min="0" max={salaryType === "foiz" ? 100 : undefined} step="any" value={rate} onChange={e => setRate(e.target.value)} /></label>
-        </div>
-        <button className="btn btn-primary" onClick={updateSalary}>Maosh sozlamalarini saqlash</button>
-        <p className="hint">Oldin kiritilgan kunlik savdolarning foiz stavkasi saqlanadi. Yangi stavka keyingi yozuvlarga qo‘llanadi.</p>
-        <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>{emp.position} · {branch?.name}</div>
-
-        {session?.role === "boss" && (
-          <div className="grid grid-2" style={{ marginTop: 12 }}>
-            <label className="field">
-              <div className="label">Parol</div>
-              <input className="input" type="text" value={passwordDraft} onChange={(e) => setPasswordDraft(e.target.value)} />
-            </label>
-            <div style={{ display: "flex", alignItems: "end" }}>
-              <button className="btn btn-primary" onClick={updatePassword}>Parolni yangilash</button>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-4">
-          <div><div className="muted" style={{ fontSize: 12 }}>📞 Telefon</div><div>{emp.phone}</div></div>
-          <div><div className="muted" style={{ fontSize: 12 }}>📅 Ishga kirgan</div><div>{emp.hireDate}</div></div>
-          <div><div className="muted" style={{ fontSize: 12 }}>💼 Maosh turi</div><div>{SALARY_TYPES.find((t) => t.id === emp.salaryType)?.label}</div></div>
-          <div><div className="muted" style={{ fontSize: 12 }}>🟢 Davomat %</div><div>{attPct}%</div></div>
-        </div>
+function EmployeeForm({ state, persist, session, employee }) {
+  const [form, setForm] = useState(() => employee ? { ...initialForm(), ...employee, password: "", rate: String(employee.rate ?? 0) } : initialForm());
+  const [created, setCreated] = useState(null);
+  const action = useSaveAction();
+  const field = key => ({ value: form[key], onChange: e => { setForm(s => ({ ...s, [key]: e.target.value })); action.setMessage(""); } });
+  const admins = state.users.filter(u => u.role === "admin" && u.branchId === form.branchId && u.active !== false);
+  async function submit(event) {
+    event.preventDefault();
+    const password = form.password.trim();
+    if (!form.name.trim() || !loginKey(form.phone) || !state.branches.some(b => b.id === form.branchId)) { action.setMessage("Ism, login va mavjud filialni kiriting."); return; }
+    if ((!employee || password) && password.length < 4) { action.setMessage("Parol kamida 4 belgidan iborat bo‘lsin."); return; }
+    if (!form.rate.trim() || !Number.isFinite(Number(form.rate)) || Number(form.rate) < 0 || (form.salaryType === "foiz" && Number(form.rate) > 100)) { action.setMessage("Maosh stavkasini to‘g‘ri kiriting. Foiz 0–100 oralig‘ida."); return; }
+    if (state.users.some(u => u.id !== employee?.id && loginKey(u.phone) === loginKey(form.phone))) { action.setMessage("Bu login allaqachon mavjud. Ro‘yxatdan hisobni oching."); return; }
+    const id = employee?.id || uid();
+    const values = { name: form.name.trim(), phone: loginKey(form.phone), branchId: form.branchId, role: form.role, position: form.position.trim(), salaryType: form.salaryType, rate: Number(form.rate), workStart: form.workStart, workEnd: form.workEnd, hireDate: form.hireDate, ...(password ? { customPassword: password } : {}) };
+    const ok = await action.run(() => persist(current => {
+      const existing = current.users.find(u => u.id === id);
+      if (employee && JSON.stringify(existing) !== JSON.stringify(employee)) throw new Error("Profil boshqa qurilmada yangilandi. Ro‘yxatga qaytib profilni qayta oching.");
+      const user = { ...(existing || { id, active: true, firstLogin: true }), ...values };
+      let next = { ...current, users: existing ? current.users.map(u => u.id === id ? user : u) : [...current.users, user] };
+      if (existing && existing.branchId !== user.branchId) next.transfers = [...(current.transfers || []), { id: uid(), employeeId: id, fromBranchId: existing.branchId, toBranchId: user.branchId, effectiveDate: todayISO(), by: session.name }];
+      return logAction(next, session.name, `${user.name}: ${existing ? "profil yangilandi" : "hisob yaratildi"}.`);
+    }), employee ? "Profil serverga saqlandi." : "Yangi hisob serverga saqlandi.");
+    if (ok) {
+      setCreated({ name: values.name, phone: values.phone, branch: state.branches.find(b => b.id === values.branchId)?.name });
+      setForm(employee ? { ...form, password: "" } : { ...initialForm(), branchId: form.branchId });
+    }
+  }
+  async function archive() {
+    if (!confirm(employee.active === false ? "Hisob qayta faollashtirilsinmi?" : "Hisob arxivlansinmi? Xodimning barcha tarixi saqlanadi.")) return;
+    await action.run(() => persist(current => logAction({ ...current, users: current.users.map(u => u.id === employee.id ? { ...u, active: employee.active === false, endDate: employee.active === false ? null : todayISO() } : u) }, session.name, `${employee.name}: hisob ${employee.active === false ? "faollashtirildi" : "arxivlandi"}.`)));
+  }
+  return <form className="card card-pad section-gap" onSubmit={submit}>
+    <h3 className="section-title">{employee ? `${employee.name} — profil` : "Yangi xodim / admin qo‘shish"}</h3>
+    <fieldset disabled={action.busy} style={{ border: 0, padding: 0, margin: 0 }}>
+      <div className="grid grid-2">
+        <label className="field">Ism-familiya<input required className="input" {...field("name")} /></label>
+        <label className="field">Telefon yoki login<input required autoCapitalize="none" autoCorrect="off" className="input" {...field("phone")} /></label>
+        <label className="field">{employee ? "Yangi parol (almashtirish uchun)" : "Boshlang‘ich parol"}<input required={!employee} minLength={4} autoComplete="new-password" type="password" className="input" {...field("password")} /></label>
+        <label className="field">Filial<select required className="input" {...field("branchId")}><option value="">Filialni tanlang</option>{state.branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+        <label className="field">Rol<select className="input" {...field("role")}><option value="employee">Xodim</option><option value="admin">Filial admini</option></select></label>
+        <label className="field">Lavozim<input required className="input" {...field("position")} /></label>
+        <label className="field">Maosh turi<select className="input" {...field("salaryType")}>{SALARY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
+        <label className="field">{form.salaryType === "foiz" ? "Savdodan foiz (%)" : "Stavka (so‘m)"}<input required min="0" max={form.salaryType === "foiz" ? "100" : "1000000000000"} step="any" type="number" inputMode="decimal" className="input" {...field("rate")} /></label>
+        <label className="field">Ish boshlanishi<input required type="time" className="input" {...field("workStart")} /></label>
+        <label className="field">Ish tugashi<input required type="time" className="input" {...field("workEnd")} /></label>
+        <label className="field">Ishga kirgan sana<input required type="date" className="input" {...field("hireDate")} /></label>
       </div>
-      <div className="grid grid-4 section-gap">
-        <div className="stat-card"><div className="label">⏱ Ishlagan kun (bu oy)</div><div className="value">{r.worked}</div></div>
-        <div className="stat-card"><div className="label">➕ Jami bonus</div><div className="value green">+{fmt(r.bonuses)}</div></div>
-        <div className="stat-card"><div className="label">➖ Jami jarima</div><div className="value red">-{fmt(r.fines)}</div></div>
-        <div className="stat-card"><div className="label">💰 Bu oy maosh</div><div className="value accent">{fmt(r.total)}</div></div>
-      </div>
-      <h3 className="section-title">📝 Izohlar / o'zgarishlar tarixi</h3>
-      <EmployeeHistory state={state} employeeId={emp.id} />
-      <ResponsiveTable>
-        {r.adjRecords.length === 0 && <div className="empty">Yozuv yo'q.</div>}
-        {[...r.adjRecords].reverse().map((a) => (
-          <div key={a.id} className="trow" style={{ gridTemplateColumns: "1fr 1fr 2fr auto" }}>
-            <span className="muted">{a.date}</span>
-            <span className={a.type === "jarima" ? "badge badge-red" : "badge badge-green"}>
-              {a.type === "jarima" ? "Jarima" : "Bonus"}
-            </span>
-            <span className="muted">{a.comment}</span>
-            <span>{a.type === "jarima" ? "-" : "+"}{fmt(a.amount)}</span>
-          </div>
-        ))}
-      </ResponsiveTable>
-    </div>
-  );
+      {form.branchId && <p className="hint">{form.role === "admin" ? "Admin shu filialdagi xodimlarni ko‘radi." : admins.length ? `Xodim quyidagi adminlarda ko‘rinadi: ${admins.map(u => u.name).join(", ")}.` : "Bu filialga hali admin biriktirilmagan. Boshliq xodimni ko‘radi; filial adminini ham shu filialga biriktiring."}</p>}
+      <button className="btn btn-primary" type="submit">{action.busy ? "Saqlanmoqda..." : employee ? "Profilni saqlash" : "Xodimni qo‘shish"}</button>
+      {employee && <button className="btn" type="button" onClick={archive}>{employee.active === false ? "Hisobni faollashtirish" : "Hisobni arxivlash"}</button>}
+    </fieldset>
+    {action.message && <p role="status">{action.message}</p>}
+    {created && <p className="hint">{created.name} · Login: {created.phone} · Filial: {created.branch}</p>}
+  </form>;
 }

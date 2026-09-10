@@ -22,6 +22,7 @@ export function validateChanges(current, next, changes, session) {
       if (row.role === 'boss' && (!before || before.role !== 'boss')) fail('Yangi boshliq hisobi bu yerda yaratilmaydi.');
       if (before?.id === session.id && (row.role !== before.role || row.active === false)) fail('O‘z boshqaruv hisobingizni o‘chira olmaysiz.');
       if (row.role !== 'boss' && !branchIds.has(row.branchId)) fail('Xodim yoki admin uchun mavjud filialni tanlang.');
+      if (row.active !== undefined && typeof row.active !== 'boolean') fail('Hisob holati noto‘g‘ri.');
       if (next.users.some(u => u.id !== row.id && loginKey(u.phone) === loginKey(row.phone))) fail('Bu telefon yoki login allaqachon band.');
       if (!['oylik', 'kunlik', 'soatlik', 'foiz'].includes(row.salaryType) || !money(row.rate) || (row.salaryType === 'foiz' && row.rate > 100)) fail('Maosh turi yoki stavkasi noto‘g‘ri.');
       if (!time(row.workStart) || !time(row.workEnd) || !date(row.hireDate)) fail('Ish vaqti yoki ishga kirish sanasi noto‘g‘ri.');

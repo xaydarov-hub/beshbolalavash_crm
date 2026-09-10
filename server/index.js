@@ -1,3 +1,6 @@
+import { validateChanges } from './validation.js';
+import { stateChanges } from '../src/lib/changes.js';
+import { prepareDatabase } from './storage.js';
 import { loginKey } from '../src/lib/identity.js';
 import { applySale } from './sales.js';
 import { migrateEvaluations, normalizeScores, evaluationTotal } from '../src/lib/evaluation.js';
@@ -61,13 +64,21 @@ async function migratePasswords(users) {
 }
 
 async function initDb() {
-  await db.read();
-  if (!db.data || !db.data.users || db.data.users.length === 0) {
-    db.data = buildState();
+  await prepareDatabase();
+  const existing = await dbFile.read();
+  if (existing === null) db.data = buildState();
+  else {
+    if (!Array.isArray(existing.users) || !existing.users.length || !Array.isArray(existing.branches)) throw new Error('Existing CRM database is invalid. Restore a verified backup; existing data was not replaced.');
+    db.data = existing;
+  }
+  for (const collection of ['attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'dailySales', 'payrollHistory']) {
+    db.data[collection] ??= [];
+    if (!Array.isArray(db.data[collection])) throw new Error(`Invalid CRM collection: ${collection}. Existing data was not replaced.`);
   }
   db.data.evaluations = migrateEvaluations(db.data.evaluations || []);
   db.data.dailySales ||= [];
   db.data.revision ||= 0;
+  db.data.databaseId ||= crypto.randomUUID();
   const migratedUsers = await migratePasswords(db.data.users || []);
   if (JSON.stringify(migratedUsers) !== JSON.stringify(db.data.users)) {
     db.data.users = migratedUsers;
@@ -170,6 +181,8 @@ const authMiddleware = (req, res, next) => {
     if (!req.user.id || !['boss', 'admin', 'employee'].includes(req.user.role)) {
       return res.status(401).json({ message: 'Invalid user session' });
     }
+    const liveUser = store.get().users.find(user => user.id === req.user.id);
+    if (!liveUser || liveUser.active === false || (liveUser.authVersion || 0) !== (req.user.authVersion || 0)) return res.status(401).json({ message: 'Hisob yangilangan. Qayta kiring.' });
     next();
   } catch {
     return res.status(401).json({ message: 'Invalid token' });
@@ -226,7 +239,7 @@ export async function mergeScopedState(current, next, session) {
         const plainPassword = incomingUser.customPassword || incomingUser.year;
         if (plainPassword) {
           const { year, customPassword, ...safeUser } = incomingUser;
-          return { ...safeUser, passwordHash: await hashPassword(plainPassword) };
+          return { ...safeUser, authVersion: (existingUser?.authVersion || 0) + 1, passwordHash: await hashPassword(plainPassword) };
         }
         return existingUser?.passwordHash ? { ...incomingUser, passwordHash: existingUser.passwordHash } : incomingUser;
       })),
@@ -284,11 +297,11 @@ app.post('/api/login', async (req, res) => {
   if (!login || !password || login.length > 200 || password.length > 1024) return res.status(400).json({ message: 'Login va parolni tekshiring.' });
   const snapshot = store.get();
   const user = snapshot.users.find(item => loginKey(item.phone) === loginKey(login));
-  if (!user || !await verifyPassword(password, user.passwordHash)) return res.status(401).json({ message: "Login yoki parol noto'g'ri." });
+  if (!user || user.active === false || !await verifyPassword(password, user.passwordHash)) return res.status(401).json({ message: "Login yoki parol noto'g'ri." });
   const current = store.get();
   const liveUser = current.users.find(item => item.id === user.id);
-  if (!liveUser || liveUser.passwordHash !== user.passwordHash) return res.status(401).json({ message: 'Hisob yangilangan. Qayta kiring.' });
-  const token = jwt.sign({ id: liveUser.id, role: liveUser.role }, JWT_SECRET, { expiresIn: '8h' });
+  if (!liveUser || liveUser.active === false || liveUser.passwordHash !== user.passwordHash) return res.status(401).json({ message: 'Hisob yangilangan. Qayta kiring.' });
+  const token = jwt.sign({ id: liveUser.id, role: liveUser.role, authVersion: liveUser.authVersion || 0 }, JWT_SECRET, { expiresIn: '8h' });
   return sendState(req, res, { token, user: publicUser(liveUser), state: publicState(current, liveUser) });
 });
 
@@ -296,7 +309,7 @@ app.get('/api/state', authMiddleware, async (req, res) => {
   const current = store.get();
   const user = current.users.find(item => item.id === req.user.id);
   if (!user) return res.status(401).json({ message: 'Hisob mavjud emas.' });
-  const etag = `"${user.id}:${current.revision || 0}"`;
+  const etag = `"${user.id}:${current.databaseId || ""}:${current.revision || 0}"`;
   res.set({ ETag: etag, 'Cache-Control': 'private, no-cache' });
   if (req.headers['if-none-match'] === etag) return res.status(304).end();
   return sendState(req, res, { user: publicUser(user), state: publicState(current, user) });
@@ -304,7 +317,7 @@ app.get('/api/state', authMiddleware, async (req, res) => {
 
 function sessionUser(state, id) {
   const user = state.users.find(item => item.id === id);
-  if (!user) throw Object.assign(new Error('Sessiya tugagan.'), { status: 401 });
+  if (!user || user.active === false) throw Object.assign(new Error('Sessiya tugagan.'), { status: 401 });
   return user;
 }
 function normalizeState(next, revision) {
@@ -318,7 +331,11 @@ app.put('/api/state', authMiddleware, async (req, res) => {
   const updated = await store.update(async current => {
     const user = sessionUser(current, req.user.id);
     if ((nextState.revision || 0) !== (current.revision || 0)) throw Object.assign(new Error('Yozuvlar yangilangan. Sahifani yangilang.'), { status: 409 });
-    return normalizeState(await mergeScopedState(current, nextState, user), (current.revision || 0) + 1);
+    const visible = publicState(current, user);
+    const changes = stateChanges(visible, nextState);
+    const next = applyChanges(visible, changes, user);
+    validateChanges(current, next, changes, user);
+    return normalizeState(await mergeScopedState(current, next, user), (current.revision || 0) + 1);
   });
   return sendState(req, res, { ok: true, state: publicState(updated, sessionUser(updated, req.user.id)) });
 });
@@ -327,6 +344,7 @@ app.patch('/api/state', authMiddleware, async (req, res) => {
   const updated = await store.update(async current => {
     const user = sessionUser(current, req.user.id);
     const next = applyChanges(publicState(current, user), req.body?.changes, user);
+    validateChanges(current, next, req.body.changes, user);
     return normalizeState(await mergeScopedState(current, next, user), (current.revision || 0) + 1);
   });
   return sendState(req, res, { ok: true, state: publicState(updated, sessionUser(updated, req.user.id)) });
@@ -342,7 +360,7 @@ app.post('/api/reset', authMiddleware, async (req, res) => {
     if (sessionUser(current, req.user.id).role !== 'boss') throw Object.assign(new Error('Only the boss can reset the system'), { status: 403 });
     const next = buildState();
     next.users = await migratePasswords(next.users);
-    return { ...next, dailySales: [], revision: (current.revision || 0) + 1 };
+    return { ...next, databaseId: crypto.randomUUID(), dailySales: [], revision: (current.revision || 0) + 1 };
   });
   res.json({ ok: true, state: publicState(updated, { role: 'boss' }) });
 });

@@ -12,7 +12,8 @@ export default function AdminDashboard({ state, persist, session, saveSale }) {
   const [tab, setTab] = useState("attendance");
   const [date, setDate] = useState(todayISO());
   const [showAbsentOnly, setShowAbsentOnly] = useState(false);
-  const employees = state.users.filter((u) => u.role === "employee" && u.branchId === session.branchId);
+  const [search, setSearch] = useState('');
+  const employees = state.users.filter((u) => u.role === "employee" && u.active !== false && u.branchId === session.branchId);
   const branch = state.branches.find((b) => b.id === session.branchId);
 
   const getRec = (empId) => state.attendance.find((a) => a.employeeId === empId && a.date === date);
@@ -21,7 +22,7 @@ export default function AdminDashboard({ state, persist, session, saveSale }) {
   if (showAbsentOnly) rows = rows.filter((r) => !r.rec || r.rec.status !== "keldi");
 
   const summary = employees.reduce((acc, e) => {
-    const st = getRec(e.id)?.status || "kelmadi";
+    const st = getRec(e.id)?.status || "unmarked";
     acc[st] = (acc[st] || 0) + 1;
     return acc;
   }, {});
@@ -50,13 +51,25 @@ export default function AdminDashboard({ state, persist, session, saveSale }) {
 
   return (
     <div>
+      <h2 className="section-title">{branch?.name || 'Filial biriktirilmagan'}</h2>
+      <p className="hint">{employees.length} ta faol xodim · {session.name}</p>
+      {!branch && <p role="alert">Boshliq profilingizga filial biriktirishi kerak.</p>}
       <div className="tabs">
+        <button className={`tab-btn ${tab === "employees" ? "active" : ""}`} onClick={() => setTab("employees")}>Xodimlar</button>
         <button className={`tab-btn ${tab === "sales" ? "active" : ""}`} onClick={() => setTab("sales")}>Kunlik savdo</button>
         <button className={`tab-btn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>Xodim tarixi</button>
         <button className={`tab-btn ${tab === "attendance" ? "active" : ""}`} onClick={() => setTab("attendance")}>🕐 Davomat</button>
         <button className={`tab-btn ${tab === "evaluations" ? "active" : ""}`} onClick={() => setTab("evaluations")}>⭐ Ball baholash</button>
         <button className={`tab-btn ${tab === "transfer" ? "active" : ""}`} onClick={() => setTab("transfer")}>↔️ Xodim ko'chirish</button>
       </div>
+      {tab === 'employees' && <section>
+        <label className="field">Xodimni qidirish<input className="input" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ism yoki login" /></label>
+        <div className="grid grid-2">{employees.filter(e => `${e.name} ${e.phone}`.toLowerCase().includes(search.toLowerCase())).map(e => <article key={e.id} className="card card-pad">
+          <h3>{e.name}</h3><p>{e.position} · {e.phone}</p><p>Ish vaqti: {e.workStart || '08:00'} – {e.workEnd || '17:00'}</p>
+          <button className="btn" onClick={() => { setHistoryId(e.id); setTab('history'); }}>Profil va tarix</button>
+        </article>)}</div>
+        {!employees.length && <p className="empty">Bu filialga faol xodim biriktirilmagan. Boshliq xodim profilida shu filialni tanlashi kerak.</p>}
+      </section>}
       {tab === "history" && <><label className="field">Xodim<select className="input" value={historyId} onChange={e => setHistoryId(e.target.value)}><option value="">Xodimni tanlang</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>{historyId && <EmployeeHistory state={state} employeeId={historyId} />}</>}
       {tab === "sales" && <SalesPanel state={state} session={session} saveSale={saveSale} />}
       {tab === "evaluations" && <EvaluationPanel state={state} persist={persist} session={session} employeeScope={scopedEmployees} />}
@@ -78,13 +91,14 @@ export default function AdminDashboard({ state, persist, session, saveSale }) {
           <div>Xodim</div><div>Holati</div><div>Keldi</div><div>Ketdi</div><div>Ish vaqti</div>
         </div>
         {rows.map(({ emp, rec }) => {
-          const r = rec || { status: "keldi", checkIn: "", checkOut: "" };
+          const r = rec || { status: "", checkIn: "", checkOut: "" };
           const hrs = hoursBetween(r.checkIn, r.checkOut);
           return (
             <div key={emp.id} className="trow" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr" }}>
               <div>{emp.name} <span className="muted" style={{ fontSize: 11.5 }}>· {emp.position}</span></div>
               <select className="input" style={{ padding: "5px 8px" }} value={r.status}
                 onChange={(e) => updateStatus(emp, { status: e.target.value })}>
+                <option value="" disabled>Belgilanmagan</option>
                 <option value="keldi">Keldi</option>
                 <option value="kelmadi">Kelmadi</option>
                 <option value="tatil">Ta'til</option>

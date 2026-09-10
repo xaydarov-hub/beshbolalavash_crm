@@ -12,7 +12,7 @@ export default function Attendance({ state, persist, session }) {
   const [showAbsentOnly, setShowAbsentOnly] = useState(false);
 
   const employees = state.users
-    .filter((u) => u.role === "employee" || u.role === "admin")
+    .filter((u) => u.active !== false && (u.role === "employee" || u.role === "admin"))
     .filter((u) => branchId === "all" || u.branchId === branchId);
 
   const getRec = (empId) => state.attendance.find((a) => a.employeeId === empId && a.date === date);
@@ -22,7 +22,7 @@ export default function Attendance({ state, persist, session }) {
 
   const summary = employees.reduce((acc, e) => {
     const rec = getRec(e.id);
-    const st = rec?.status || "kelmadi";
+    const st = rec?.status || "unmarked";
     acc[st] = (acc[st] || 0) + 1;
     return acc;
   }, {});
@@ -67,13 +67,14 @@ export default function Attendance({ state, persist, session }) {
           <div>Xodim</div><div>Holati</div><div>Keldi</div><div>Ketdi</div><div>Ish vaqti</div><div>Kechikish</div>
         </div>
         {rows.map(({ emp, rec }) => {
-          const r = rec || { status: "keldi", checkIn: "", checkOut: "", late: false };
+          const r = rec || { status: "", checkIn: "", checkOut: "", late: false };
           const hrs = hoursBetween(r.checkIn, r.checkOut);
           return (
             <div key={emp.id} className="trow" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 0.8fr" }}>
               <div>{emp.name}</div>
               <select className="input" style={{ padding: "5px 8px" }} value={r.status}
                 onChange={(e) => updateStatus(emp, { status: e.target.value })}>
+                <option value="" disabled>Belgilanmagan</option>
                 <option value="keldi">Keldi</option>
                 <option value="kelmadi">Kelmadi</option>
                 <option value="tatil">Ta'til</option>

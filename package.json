@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
-    "test:load": "node server/load-check.mjs"
+    "test:load": "node server/load-check.mjs",
+    "test:workflow": "node server/workflow-check.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

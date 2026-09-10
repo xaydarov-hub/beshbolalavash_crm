@@ -1,3 +1,4 @@
+import { useSaveAction } from "../../lib/useSaveAction.js";
 import ResponsiveTable from "../ResponsiveTable.jsx";
 import SalesPanel from "../SalesPanel.jsx";
 import EmployeeHistory from "../EmployeeHistory.jsx";
@@ -11,6 +12,7 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
   const [month, setMonth] = useState(monthKey(todayISO()));
   const r = computeEmployeeReport(state, session.id, month);
   const branch = state.branches.find((b) => b.id === session.branchId);
+  if (!r) return <p className="empty" role="status">Xodim profili topilmadi. Ma’lumotlarni yangilang yoki qayta kiring.</p>;
 
   const myLeaves = state.leaveRequests.filter((l) => l.employeeId === session.id);
 
@@ -119,19 +121,21 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
 }
 
 function LeaveRequestForm({ persist, session, myLeaves }) {
+  const action = useSaveAction();
   const [from, setFrom] = useState(todayISO());
   const [to, setTo] = useState(todayISO());
   const [type, setType] = useState("tatil");
   const [reason, setReason] = useState("");
 
-  const submit = () => {
+  const submit = async () => {
+    if (!from || !to || (Date.parse(to) - Date.parse(from)) / 86400000 > 365) { action.setMessage("Sanalarni kiriting. Davr bir yildan oshmasin."); return; }
     if (!reason.trim()) { alert("Sababni yozing."); return; }
     if (to < from) { alert("Tugash sanasi boshlanish sanasidan oldin bo'lmasligi kerak."); return; }
-    persist((s) => ({
+    const ok = await action.run(() => persist((s) => ({
       ...s,
       leaveRequests: [...s.leaveRequests, { id: uid(), employeeId: session.id, from, to, type, reason: reason.trim(), status: "kutilmoqda", requestedAt: todayISO() }],
-    }));
-    setReason("");
+    })));
+    if (ok) setReason("");
   };
 
   return (
@@ -151,9 +155,10 @@ function LeaveRequestForm({ persist, session, myLeaves }) {
           </select></label>
         <label className="field"><div className="label">Sababi</div>
           <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-        <button className="btn btn-primary" onClick={submit}>Yuborish</button>
+        <button className="btn btn-primary" disabled={action.busy} onClick={submit}>Yuborish</button>
       </div>
 
+      {action.message && <p role="status">{action.message}</p>}
       <h3 className="section-title">Mening so'rovlarim</h3>
       <ResponsiveTable>
         {myLeaves.length === 0 && <div className="empty">Hali so'rov yo'q.</div>}

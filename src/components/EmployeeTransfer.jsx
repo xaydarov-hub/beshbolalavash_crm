@@ -4,7 +4,7 @@ import { logAction } from "../lib/db.js";
 
 export default function EmployeeTransfer({ state, persist, session, employeeScope }) {
   const employees = useMemo(
-    () => state.users.filter((user) => user.role === "employee" && (!employeeScope || employeeScope(user))),
+    () => state.users.filter((user) => user.role === "employee" && user.active !== false && (!employeeScope || employeeScope(user))),
     [state.users, employeeScope]
   );
   const [employeeId, setEmployeeId] = useState("");

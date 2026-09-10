@@ -6,7 +6,7 @@ import { computeAllReports } from "../../lib/salary.js";
 export default function Analytics({ state }) {
   const today = todayISO();
   const thisMonth = monthKey(today);
-  const lastMonth = monthKey(addDays(today, -30));
+  const lastMonth = monthKey(addDays(`${thisMonth}-01`, -1));
 
   const thisReports = computeAllReports(state, thisMonth, "all");
   const lastReports = computeAllReports(state, lastMonth, "all");

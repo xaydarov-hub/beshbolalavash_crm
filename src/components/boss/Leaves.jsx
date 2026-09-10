@@ -4,9 +4,10 @@ import { logAction } from "../../lib/db.js";
 import { addDays, uid } from "../../lib/utils.js";
 
 export default function Leaves({ state, persist, session }) {
-  const requests = [...state.leaveRequests].sort((a, b) => (a.status === "kutilmoqda" ? -1 : 1));
+  const requests = [...state.leaveRequests].sort((a, b) => (Number(b.status === "kutilmoqda") - Number(a.status === "kutilmoqda")));
 
   const decide = (req, status) => {
+    if (!req.from || !req.to || !Number.isFinite(Date.parse(req.from)) || !Number.isFinite(Date.parse(req.to)) || req.to < req.from || (Date.parse(req.to) - Date.parse(req.from)) / 86400000 > 365) { alert("Sanalar noto‘g‘ri. So‘rovni tuzatish kerak."); return; }
     const emp = state.users.find((u) => u.id === req.employeeId);
     persist((s) => {
       let attendance = s.attendance;

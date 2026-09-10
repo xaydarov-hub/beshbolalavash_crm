@@ -26,18 +26,18 @@ export function computeEmployeeReport(state, employeeId, month) {
   const adj = state.adjustments.filter(
     (a) => a.employeeId === employeeId && monthKey(a.date) === month
   );
-  const bonuses = adj.filter((a) => a.type === "bonus").reduce((s, a) => s + a.amount, 0);
-  const fines = adj.filter((a) => a.type === "jarima").reduce((s, a) => s + a.amount, 0);
+  const bonuses = adj.filter((a) => a.type === "bonus").reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const fines = adj.filter((a) => a.type === "jarima").reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
   const saleRecords = (state.dailySales || []).filter(a => a.employeeId === employeeId && monthKey(a.date) === month);
   const legacySales = Number(state.sales?.[`${employeeId}:${month}`]) || 0;
-  const sales = legacySales + saleRecords.reduce((sum, a) => sum + a.amount, 0);
+  const sales = legacySales + saleRecords.reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
 
   let base = 0;
-  const rate = emp.rate || 0;
+  const rate = Number(emp.rate) || 0;
   switch (emp.salaryType) {
     case "oylik":
-      base = rate;
+      base = (emp.hireDate && month < monthKey(emp.hireDate)) || (emp.endDate && month > monthKey(emp.endDate)) ? 0 : rate;
       break;
     case "kunlik":
       base = rate * worked.length;

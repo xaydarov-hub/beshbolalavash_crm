@@ -29,10 +29,12 @@ try {
     return response;
   }
   const start = performance.now();
-  const tokens = await Promise.all(users.map(async user => (await (await call('/api/login', null, 'POST', { phone: user.phone, pass: 'test-only-password' })).json()).token));
+  const sessions = await Promise.all(users.map(async user => (await call('/api/login', null, 'POST', { phone: user.phone, pass: 'test-only-password' })).json()));
+  const tokens = sessions.map(session => session.token);
+  const databaseId = sessions[0].state.databaseId;
   const loginMs = Math.round(performance.now() - start);
   const readStart = performance.now();
-  await Promise.all(Array.from({ length: 150 }, (_, i) => call('/api/state', tokens[i % 15], 'GET', null, { 'If-None-Match': `"a${i % 15}:0"` }).then(r => assert.equal(r.status, 304))));
+  await Promise.all(Array.from({ length: 150 }, (_, i) => call('/api/state', tokens[i % 15], 'GET', null, { 'If-None-Match': `"a${i % 15}:${databaseId}:0"` }).then(r => assert.equal(r.status, 304))));
   const readMs = Math.round(performance.now() - readStart);
   const saleStart = performance.now();
   await Promise.all(tokens.map((token, i) => call('/api/sales', token, 'POST', { employeeId: `e${i}`, date: '2026-01-10', amount: 10000000 })));

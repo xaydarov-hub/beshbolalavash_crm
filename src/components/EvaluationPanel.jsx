@@ -5,7 +5,7 @@ import { logAction } from "../lib/db.js";
 
 export default function EvaluationPanel({ state, persist, session, employeeScope }) {
   const employees = useMemo(
-    () => state.users.filter((user) => user.role === "employee" && (!employeeScope || employeeScope(user))),
+    () => state.users.filter((user) => user.role === "employee" && user.active !== false && (!employeeScope || employeeScope(user))),
     [state.users, employeeScope]
   );
   const [date, setDate] = useState(todayISO());
