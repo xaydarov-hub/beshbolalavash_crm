@@ -17,15 +17,16 @@ export default function Branches({ state, persist, session }) {
     if (ok) setName("");
   };
 
-  const removeBranch = (b) => {
+  const removeBranch = async (b) => {
     if (state.users.some((u) => u.branchId === b.id)) {
       alert("Bu filialda xodimlar bor — avval ularni boshqa filialga ko'chiring.");
       return;
     }
-    persist((s) => logAction(
+    if (!confirm(`${b.name} filiali o‘chirilsinmi?`)) return;
+    await action.run(() => persist((s) => logAction(
       { ...s, branches: s.branches.filter((x) => x.id !== b.id) },
       session.name, `Filialni o'chirdi: ${b.name}.`
-    ));
+    )));
   };
 
   return (
@@ -37,12 +38,12 @@ export default function Branches({ state, persist, session }) {
       {action.message && <p role="status">{action.message}</p>}
       <ResponsiveTable>
         {state.branches.map((b) => {
-          const count = state.users.filter((u) => u.branchId === b.id && u.role === "employee").length;
+          const count = state.users.filter((u) => u.branchId === b.id && u.active !== false && (u.role === "employee" || u.role === "admin")).length;
           return (
             <div key={b.id} className="trow" style={{ gridTemplateColumns: "1fr auto auto" }}>
               <span>🏢 {b.name}</span>
-              <span className="muted">{count} xodim</span>
-              <button className="btn-icon" onClick={() => removeBranch(b)}>🗑</button>
+              <span className="muted">{count} faol hisob</span>
+              <button className="btn-icon" disabled={action.busy} aria-label={`${b.name} filialini o‘chirish`} onClick={() => removeBranch(b)}>🗑</button>
             </div>
           );
         })}

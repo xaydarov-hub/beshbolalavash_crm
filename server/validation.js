@@ -1,5 +1,6 @@
 import { loginKey } from '../src/lib/identity.js';
 import { EVALUATION_CRITERIA } from '../src/lib/evaluation.js';
+import { isDeepStrictEqual } from 'node:util';
 
 const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 const time = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
@@ -17,6 +18,8 @@ export function validateChanges(current, next, changes, session) {
       continue;
     }
     if (collection === 'users') {
+      // Closing a malformed legacy account changes only its active flag and end date.
+      if (before && before.id !== session.id && before.role !== 'boss' && row.active === false && date(row.endDate) && isDeepStrictEqual(row, { ...before, active: false, endDate: row.endDate })) continue;
       if (!text(row.name) || !text(row.phone, 100) || !loginKey(row.phone)) fail('Ism va telefon/loginni to‘liq kiriting.');
       if (!['boss', 'admin', 'employee'].includes(row.role)) fail('Rol noto‘g‘ri.');
       if (row.role === 'boss' && (!before || before.role !== 'boss')) fail('Yangi boshliq hisobi bu yerda yaratilmaydi.');

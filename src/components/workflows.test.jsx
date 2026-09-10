@@ -12,7 +12,7 @@ import { todayISO } from '../lib/utils.js';
 const employee = { id: 'e', role: 'employee', name: 'Abdulloh', branchId: 'b', position: 'Ofitsiant', salaryType: 'foiz', rate: 7 };
 const admin = { id: 'a', role: 'admin', name: 'Admin', branchId: 'b' };
 const state = { users: [employee], branches: [{ id: 'b', name: 'Filial' }], attendance: [], adjustments: [], evaluations: [], dailySales: [], sales: {}, transfers: [], leaveRequests: [] };
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it('admin can open employee history and see a selected employee', () => {
   render(<AdminDashboard state={state} session={admin} persist={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: /Xodim tarixi/ }));
@@ -102,4 +102,23 @@ it('opens all dashboard tabs with empty and populated data', () => {
       view.unmount();
     }
   }
+});
+
+it('offers permanent deletion for an account whose branch was deleted, and keeps it on server failure', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  const deleteUser = vi.fn().mockRejectedValue(new Error('Delete failed'));
+  const orphan = { ...admin, phone: 'admin.local', branchId: 'deleted-branch' };
+  render(<Employees state={{ ...state, users: [orphan] }} session={{ role: 'boss', name: 'Boss' }} persist={vi.fn()} deleteUser={deleteUser} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Admin', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Hisobni butunlay o‘chirish' }));
+  await waitFor(() => expect(screen.getByText('Delete failed')).toBeInTheDocument());
+  expect(deleteUser).toHaveBeenCalledWith(orphan);
+  expect(screen.getByRole('button', { name: 'Hisobni butunlay o‘chirish' })).toBeInTheDocument();
+});
+
+it('removes archived accounts from the active list and shows them only with the archive filter', () => {
+  render(<Employees state={{ ...state, users: [{ ...admin, phone: 'admin.local', active: false }] }} session={{ role: 'boss', name: 'Boss' }} persist={vi.fn()} />);
+  expect(screen.queryByRole('button', { name: 'Admin (arxiv)', exact: true })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox'));
+  expect(screen.getByRole('button', { name: 'Admin (arxiv)', exact: true })).toBeInTheDocument();
 });

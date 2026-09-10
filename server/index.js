@@ -1,6 +1,7 @@
 import { validateChanges } from './validation.js';
 import { stateChanges } from '../src/lib/changes.js';
 import { prepareDatabase } from './storage.js';
+import { deleteAccount, removeLegacyDemoAccounts } from './accounts.js';
 import { loginKey } from '../src/lib/identity.js';
 import { applySale } from './sales.js';
 import { migrateEvaluations, normalizeScores, evaluationTotal } from '../src/lib/evaluation.js';
@@ -84,6 +85,7 @@ async function initDb() {
     db.data.users = migratedUsers;
   }
   if (!Array.isArray(db.data.payrollHistory)) db.data.payrollHistory = [];
+  db.data = removeLegacyDemoAccounts(db.data);
   await db.write();
   store = createStore(db.data, next => dbFile.write(next));
 }
@@ -105,52 +107,16 @@ function makeUsers() {
       hireDate: todayISO(),
       firstLogin: false,
     },
-    {
-      id: 'admin-1',
-      role: 'admin',
-      name: 'Filial Admini',
-      phone: 'admin.local',
-      year: '2024',
-      branchId: 'branch-1',
-      position: 'Filial admini',
-      workStart: '08:00',
-      workEnd: '17:00',
-      salaryType: 'oylik',
-      rate: 3200000,
-      hireDate: todayISO(),
-      firstLogin: false,
-    },
-    {
-      id: 'employee-1',
-      role: 'employee',
-      name: 'Yangi xodim',
-      phone: 'employee.local',
-      year: '2024',
-      branchId: 'branch-1',
-      position: 'Ofitsiant',
-      workStart: '08:00',
-      workEnd: '17:00',
-      salaryType: 'kunlik',
-      rate: 120000,
-      hireDate: todayISO(),
-      firstLogin: true,
-    },
+
   ];
 }
 
 function buildState() {
   const today = todayISO();
   return {
-    branches: [
-      { id: 'branch-1', name: 'Chilonzor filiali' },
-      { id: 'branch-2', name: 'Yunusobod filiali' },
-      { id: 'branch-3', name: 'Sergeli filiali' },
-    ],
+    branches: [],
     users: makeUsers(),
-    attendance: [
-      { id: uid(), employeeId: 'employee-1', date: today, status: 'keldi', checkIn: '08:15', checkOut: '17:30', late: true },
-      { id: uid(), employeeId: 'admin-1', date: today, status: 'keldi', checkIn: '08:00', checkOut: '17:00', late: false },
-    ],
+    attendance: [],
     adjustments: [],
     sales: {},
     leaveRequests: [],
@@ -353,6 +319,15 @@ app.patch('/api/state', authMiddleware, async (req, res) => {
 app.post('/api/sales', authMiddleware, async (req, res) => {
   const updated = await store.update(current => ({ ...applySale(current, sessionUser(current, req.user.id), req.body || {}), revision: (current.revision || 0) + 1 }));
   return sendState(req, res, { state: publicState(updated, sessionUser(updated, req.user.id)) });
+});
+
+app.delete('/api/users/:id', authMiddleware, async (req, res) => {
+  const updated = await store.update(current => {
+    const user = sessionUser(current, req.user.id);
+    const next = deleteAccount(current, user, req.params.id, req.body?.expectedUser, publicUser(current.users.find(row => row.id === req.params.id)));
+    return next === current ? current : { ...next, revision: (current.revision || 0) + 1 };
+  });
+  return sendState(req, res, { ok: true, state: publicState(updated, sessionUser(updated, req.user.id)) });
 });
 
 app.post('/api/reset', authMiddleware, async (req, res) => {

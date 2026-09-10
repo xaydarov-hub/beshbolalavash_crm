@@ -8,8 +8,9 @@ export default function Overview({ state }) {
   const reports = computeAllReports(state, month, "all");
   const today = todayISO();
 
-  const todayAtt = state.attendance.filter((a) => a.date === today);
-  const employees = state.users.filter((u) => u.role === "employee");
+  const employees = state.users.filter((u) => u.role === "employee" && u.active !== false);
+  const activeIds = new Set(employees.map(u => u.id));
+  const todayAtt = state.attendance.filter((a) => a.date === today && activeIds.has(a.employeeId));
   const working = todayAtt.filter((a) => a.status === "keldi").length;
   const absent = todayAtt.filter((a) => a.status === "kelmadi").length;
   const late = todayAtt.filter((a) => a.status === "keldi" && a.late).length;

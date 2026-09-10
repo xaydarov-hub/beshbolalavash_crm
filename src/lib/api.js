@@ -53,7 +53,7 @@ export async function request(path, { method = 'GET', body, headers = {}, timeou
       const message = data?.message || (response.status === 401 ? 'Sessiya tugadi. Qayta kiring.' : 'So‘rov bajarilmadi.');
       throw Object.assign(new Error(message), { status: response.status });
     }
-    if (path === '/api/state' || path === '/api/login' || path === '/api/sales') {
+    if (path === '/api/state' || path === '/api/login' || path === '/api/sales' || path.startsWith('/api/users/')) {
       if (!data?.state || !Array.isArray(data.state.users) || !Array.isArray(data.state.branches)) throw new Error('Server to‘liq ma’lumot qaytarmadi. Qayta urinib ko‘ring.');
     }
     return data;

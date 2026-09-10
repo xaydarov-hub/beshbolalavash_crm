@@ -1,6 +1,6 @@
 import { uid, todayISO } from '../src/lib/utils.js';
 export function applySale(state, session, input) {
-  const employee = state.users.find(u => u.id === input.employeeId && u.role === 'employee');
+  const employee = state.users.find(u => u.id === input.employeeId && u.role === 'employee' && u.active !== false);
   const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
   if (!employee || !['boss', 'admin'].includes(session.role) || (session.role === 'admin' && employee.branchId !== session.branchId)) fail('Bu xodim savdosini kiritish huquqi yo‘q.', 403);
   const { date, amount } = input;

@@ -9,19 +9,21 @@ import ResponsiveTable from "../ResponsiveTable.jsx";
 
 const initialForm = () => ({ name: "", phone: "", password: "", branchId: "", role: "employee", position: "Ofitsiant", salaryType: "oylik", rate: "", workStart: "08:00", workEnd: "17:00", hireDate: todayISO() });
 
-export default function Employees({ state, persist, session }) {
+export default function Employees({ state, persist, session, deleteUser }) {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("all");
   const [showArchived, setShowArchived] = useState(false);
   const [profileId, setProfileId] = useState("");
+  const [notice, setNotice] = useState('');
   const profile = state.users.find(u => u.id === profileId);
   if (profile) return <section>
     <button className="btn" onClick={() => setProfileId("")}>Ro‘yxatga qaytish</button>
-    <EmployeeForm key={profile.id} state={state} persist={persist} session={session} employee={profile} />
+    <EmployeeForm key={profile.id} state={state} persist={persist} session={session} employee={profile} deleteUser={deleteUser} onFinished={message => { setProfileId(''); setNotice(message); }} />
     <EmployeeHistory state={state} employeeId={profile.id} />
   </section>;
   const rows = state.users.filter(u => u.role !== "boss" && (showArchived || u.active !== false) && (branchFilter === "all" || u.branchId === branchFilter) && `${u.name} ${u.phone}`.toLowerCase().includes(search.toLowerCase()));
   return <section>
+    {notice && <p role="status">{notice}</p>}
     <EmployeeForm state={state} persist={persist} session={session} />
     <div className="grid grid-2">
       <label className="field">Xodimni qidirish<input type="search" className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ism yoki telefon" /></label>
@@ -41,7 +43,7 @@ export default function Employees({ state, persist, session }) {
   </section>;
 }
 
-function EmployeeForm({ state, persist, session, employee }) {
+function EmployeeForm({ state, persist, session, employee, deleteUser, onFinished }) {
   const [form, setForm] = useState(() => employee ? { ...initialForm(), ...employee, password: "", rate: String(employee.rate ?? 0) } : initialForm());
   const [created, setCreated] = useState(null);
   const action = useSaveAction();
@@ -71,7 +73,13 @@ function EmployeeForm({ state, persist, session, employee }) {
   }
   async function archive() {
     if (!confirm(employee.active === false ? "Hisob qayta faollashtirilsinmi?" : "Hisob arxivlansinmi? Xodimning barcha tarixi saqlanadi.")) return;
-    await action.run(() => persist(current => logAction({ ...current, users: current.users.map(u => u.id === employee.id ? { ...u, active: employee.active === false, endDate: employee.active === false ? null : todayISO() } : u) }, session.name, `${employee.name}: hisob ${employee.active === false ? "faollashtirildi" : "arxivlandi"}.`)));
+    const ok = await action.run(() => persist(current => logAction({ ...current, users: current.users.map(u => u.id === employee.id ? { ...u, active: employee.active === false, endDate: employee.active === false ? null : todayISO() } : u) }, session.name, `${employee.name}: hisob ${employee.active === false ? "faollashtirildi" : "arxivlandi"}.`)));
+    if (ok) onFinished?.(employee.active === false ? 'Hisob faollashtirildi.' : 'Hisob arxivlandi. Faol ro‘yxatdan olib tashlandi; tarix arxivda saqlanadi.');
+  }
+  async function remove() {
+    if (!confirm(`${employee.name} (${employee.phone}) butunlay o‘chirilsinmi? Hisob, davomat, savdo va unga bog‘liq maosh yozuvlari o‘chadi. Tarixni saqlash uchun arxivlashni tanlang.`)) return;
+    const ok = await action.run(() => deleteUser(employee));
+    if (ok) onFinished?.('Hisob va unga bog‘liq yozuvlar serverdan o‘chirildi.');
   }
   return <form className="card card-pad section-gap" onSubmit={submit}>
     <h3 className="section-title">{employee ? `${employee.name} — profil` : "Yangi xodim / admin qo‘shish"}</h3>
@@ -92,6 +100,7 @@ function EmployeeForm({ state, persist, session, employee }) {
       {form.branchId && <p className="hint">{form.role === "admin" ? "Admin shu filialdagi xodimlarni ko‘radi." : admins.length ? `Xodim quyidagi adminlarda ko‘rinadi: ${admins.map(u => u.name).join(", ")}.` : "Bu filialga hali admin biriktirilmagan. Boshliq xodimni ko‘radi; filial adminini ham shu filialga biriktiring."}</p>}
       <button className="btn btn-primary" type="submit">{action.busy ? "Saqlanmoqda..." : employee ? "Profilni saqlash" : "Xodimni qo‘shish"}</button>
       {employee && <button className="btn" type="button" onClick={archive}>{employee.active === false ? "Hisobni faollashtirish" : "Hisobni arxivlash"}</button>}
+      {employee && deleteUser && <button className="btn btn-red" type="button" onClick={remove}>Hisobni butunlay o‘chirish</button>}
     </fieldset>
     {action.message && <p role="status">{action.message}</p>}
     {created && <p className="hint">{created.name} · Login: {created.phone} · Filial: {created.branch}</p>}

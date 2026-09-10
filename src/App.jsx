@@ -160,6 +160,23 @@ export default function App() {
     }
   };
 
+  const deleteUser = (employee) => {
+    const epoch = generation.current;
+    const operation = queue.current.then(async () => {
+      if (epoch !== generation.current) return false;
+      writes.current += 1; setSaving(true); setError('');
+      try {
+        const data = await request(`/api/users/${encodeURIComponent(employee.id)}`, { method: 'DELETE', body: { expectedUser: employee } });
+        if (epoch !== generation.current) return false;
+        acceptState(data.state);
+        return true;
+      } catch (error) { if (epoch === generation.current) setError(error.message); throw error; }
+      finally { writes.current -= 1; setSaving(false); }
+    });
+    queue.current = operation.catch(() => {});
+    return operation;
+  };
+
   const handleLogout = async () => {
     clearSession();
     sendTelegramMessage(`🚪 CRM tizimdan chiqildi: ${session?.name || "foydalanuvchi"}`);
@@ -206,7 +223,7 @@ export default function App() {
       <button className="btn" disabled={offline || saving || syncing} onClick={fetchState}>Ma’lumotlarni yangilash</button>
       {syncError && <div className="hint" role="status">{syncError} Avtomatik qayta tekshiriladi.</div>}
       <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout}>
-        {liveSession.role === "boss" && <BossDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} firebaseMode={false} />}
+        {liveSession.role === "boss" && <BossDashboard state={state} persist={persist} saveSale={saveSale} deleteUser={deleteUser} session={liveSession} firebaseMode={false} />}
         {liveSession.role === "admin" && <AdminDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
         {liveSession.role === "employee" && <EmployeeDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
       </Shell>

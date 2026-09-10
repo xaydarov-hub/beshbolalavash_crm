@@ -13,7 +13,7 @@ const folder = await mkdtemp(join(tmpdir(), 'crm-workflow-'));
 const dbPath = join(folder, 'db.json');
 const user = (id, role, branchId, phone = id) => ({ id, name: id, role, branchId, phone, customPassword: 'test-password', salaryType: 'foiz', rate: 7, workStart: '08:00', workEnd: '17:00', hireDate: '2026-01-01', position: 'Test' });
 await writeFile(dbPath, JSON.stringify({
-  users: [user('boss', 'boss', null), user('admin1', 'admin', 'b1'), user('admin2', 'admin', 'b2')],
+  users: [user('boss', 'boss', null), user('admin1', 'admin', 'b1'), user('admin2', 'admin', 'b2'), user('admin-1', 'admin', 'deleted-branch', 'admin.local')],
   branches: [{ id: 'b1', name: 'Branch one' }, { id: 'b2', name: 'Branch two' }],
   attendance: [], adjustments: [], evaluations: [], transfers: [], leaveRequests: [], auditLog: [], notifications: [], sales: {}, dailySales: [], payrollHistory: [], revision: 0
 }));
@@ -43,6 +43,7 @@ async function patch(token, update, status = 200) {
 try {
   await start();
   const boss = await login('boss'), admin1 = await login('admin1'), admin2 = await login('admin2');
+  await login('admin.local', 'test-password', 401);
   const employee = user('employee', 'employee', 'b1', '956604409');
   await patch(boss.token, s => ({ ...s, users: [...s.users, { ...employee, branchId: 'missing' }] }), 400);
   await patch(boss.token, s => ({ ...s, users: [...s.users, employee] }));
@@ -84,7 +85,24 @@ try {
   assert.equal(account.state.dailySales.length, 1);
   assert.equal(account.state.transfers.length, 1);
   assert.equal(account.user.branchId, 'b2');
-  console.log('PASS: create, branch visibility, normalized login, permissions, attendance, commission, 5-point scores, leave, transfer, password reset, archive/restore, durable restart.');
+  const deletionBody = { expectedUser: account.user };
+  await call('/api/users/employee', admin2.token, 'DELETE', deletionBody, 403);
+  await call('/api/users/employee', boss.token, 'DELETE', { expectedUser: { ...account.user, name: 'stale' } }, 409);
+  await call('/api/users/employee', boss.token, 'DELETE', deletionBody);
+  await call('/api/users/employee', boss.token, 'DELETE', deletionBody);
+  await login('956604409', 'new-test-password', 401);
+  const remaining = (await call('/api/state', boss.token)).state;
+  assert.ok(!remaining.users.some(u => u.id === 'employee'));
+  for (const key of ['attendance', 'dailySales', 'evaluations', 'leaveRequests', 'transfers']) assert.ok(!remaining[key].some(r => r.employeeId === 'employee'));
+  await patch(boss.token, s => ({ ...s, branches: s.branches.filter(b => b.id !== 'b2') }), 400);
+  await call('/api/users/admin2', boss.token, 'DELETE', { expectedUser: remaining.users.find(u => u.id === 'admin2') });
+  await patch(boss.token, s => ({ ...s, branches: s.branches.filter(b => b.id !== 'b2') }));
+  await stop(); await start();
+  const restarted = await login('boss');
+  assert.ok(!restarted.state.users.some(u => ['employee', 'admin2', 'admin-1'].includes(u.id)));
+  assert.ok(!restarted.state.branches.some(b => b.id === 'b2'));
+  await login('admin.local', 'test-password', 401);
+  console.log('PASS: create, branch visibility, normalized login, permissions, attendance, commission, 5-point scores, leave, transfer, password reset, archive/restore, permanent deletion, deleted branch, demo cleanup, durable restart.');
 } finally {
   await stop();
   if (!folder.startsWith(join(tmpdir(), 'crm-workflow-'))) throw new Error('Unexpected test directory');
