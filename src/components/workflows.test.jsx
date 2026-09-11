@@ -40,6 +40,24 @@ it('employee can read sales but cannot enter or save them', () => {
   expect(screen.queryByPlaceholderText('10 000 000')).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /saqlash/ })).not.toBeInTheDocument();
 });
+
+it('admin can auto-calculate percentage salary entries and settle a 15-day cycle', async () => {
+  const persist = vi.fn().mockResolvedValue(true);
+  render(<AdminDashboard state={{ ...state, users: [employee, admin], salaryEntries: [] }} session={admin} persist={persist} saveSale={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: /Maosh kiritish/ }));
+  fireEvent.change(screen.getByLabelText('Hisoblanmagan summa'), { target: { value: '100000' } });
+  expect(screen.getByLabelText('Hisoblangan summa')).toHaveValue('7000');
+  fireEvent.click(screen.getByRole('button', { name: 'Maosh yozuvini saqlash' }));
+  await waitFor(() => expect(persist).toHaveBeenCalled());
+  const updater = persist.mock.calls[0][0];
+  const nextState = updater({ ...state, users: [employee, admin], salaryEntries: [] });
+  expect(nextState.salaryEntries[0]).toMatchObject({ rawAmount: 100000, calculatedAmount: 7000, employeeId: 'e', branchId: 'b', isSettled: false });
+  fireEvent.click(screen.getByRole('button', { name: '15 kunlik hisobni yakunlash' }));
+  await waitFor(() => expect(persist).toHaveBeenCalledTimes(2));
+  const settle = persist.mock.calls[1][0];
+  const settled = settle({ ...nextState, salaryEntries: nextState.salaryEntries });
+  expect(settled.salaryEntries[0].isSettled).toBe(true);
+});
 it('renders six accessible score choices for each of twelve criteria', () => {
   render(<EvaluationPanel state={state} session={admin} persist={vi.fn()} />);
   expect(screen.getAllByRole('button', { name: '5', exact: true })).toHaveLength(12);

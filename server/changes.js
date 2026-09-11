@@ -4,7 +4,7 @@ import { EDITABLE_COLLECTIONS } from '../src/lib/changes.js';
 export function applyChanges(visible, changes, session) {
   const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
   if (!Array.isArray(changes) || changes.length > 1000) fail('O‘zgarishlar noto‘g‘ri.');
-  const allowed = session.role === 'boss' ? EDITABLE_COLLECTIONS : session.role === 'admin' ? ['attendance', 'adjustments', 'leaveRequests', 'evaluations', 'transfers', 'users', 'auditLog', 'payrollHistory'] : ['leaveRequests'];
+  const allowed = session.role === 'boss' ? EDITABLE_COLLECTIONS : session.role === 'admin' ? ['attendance', 'adjustments', 'leaveRequests', 'evaluations', 'transfers', 'users', 'auditLog', 'payrollHistory', 'salaryEntries'] : ['leaveRequests'];
   const next = { ...visible };
   for (const change of changes) {
     if (!change || typeof change !== 'object') fail('O‘zgarish formati noto‘g‘ri.');

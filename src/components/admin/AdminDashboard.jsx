@@ -8,11 +8,13 @@ import Attendance from "../boss/Attendance.jsx";
 import Adjustments from "../boss/Adjustments.jsx";
 import Leaves from "../boss/Leaves.jsx";
 import Reports from "../boss/Reports.jsx";
+import SalaryEntryPanel from "./SalaryEntryPanel.jsx";
 import { jobLabel } from "../../lib/roles.js";
 
 const TABS = [
   { id: "employees", label: "Xodimlar" },
   { id: "attendance", label: "Davomat" },
+  { id: "salary", label: "Maosh kiritish" },
   { id: "sales", label: "Kunlik savdo" },
   { id: "evaluations", label: "Ball baholash" },
   { id: "adjustments", label: "Jarima / Bonus" },
@@ -71,6 +73,7 @@ export default function AdminDashboard({ state, persist, session, saveSale }) {
         {!branchEmployees.length && <p className="empty">Bu filialga xodim biriktirilmagan.</p>}
       </section>}
       {tab === "attendance" && <Attendance state={state} persist={persist} session={session} />}
+      {tab === "salary" && <SalaryEntryPanel state={state} persist={persist} session={session} />}
       {tab === "sales" && <SalesPanel state={state} session={session} saveSale={saveSale} />}
       {tab === "evaluations" && <EvaluationPanel state={state} persist={persist} session={session} employeeScope={employeeScope} />}
       {tab === "transfer" && <EmployeeTransfer state={state} persist={persist} session={session} employeeScope={employeeScope} />}

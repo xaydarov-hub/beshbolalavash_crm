@@ -74,7 +74,7 @@ async function initDb() {
     if (!Array.isArray(existing.users) || !existing.users.length || !Array.isArray(existing.branches)) throw new Error('Existing CRM database is invalid. Restore a verified backup; existing data was not replaced.');
     db.data = existing;
   }
-  for (const collection of ['attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'dailySales', 'payrollHistory']) {
+  for (const collection of ['attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'dailySales', 'payrollHistory', 'salaryEntries']) {
     db.data[collection] ??= [];
     if (!Array.isArray(db.data[collection])) throw new Error(`Invalid CRM collection: ${collection}. Existing data was not replaced.`);
   }
@@ -127,6 +127,7 @@ function buildState() {
     evaluations: [],
     transfers: [],
     payrollHistory: [],
+    salaryEntries: [],
   };
 }
 
@@ -185,6 +186,11 @@ export function publicState(state, session) {
     dailySales: (state.dailySales || []).filter(r => visibleIds.has(r.employeeId)),
     sales: Object.fromEntries(Object.entries(state.sales || {}).filter(([key]) => [...visibleIds].some(id => key.startsWith(`${id}:`)))),
     payrollHistory: (state.payrollHistory || []).map(r => ({ ...r, employees: (r.employees || []).filter(e => visibleIds.has(e.employeeId)) })).filter(r => r.employees.length).map(r => ({ ...r, total: r.employees.reduce((sum, e) => sum + e.total, 0) })),
+    salaryEntries: (state.salaryEntries || []).filter(entry => {
+      if (session.role === 'boss') return true;
+      if (session.role === 'admin') return entry.branchId === currentUser.branchId;
+      return entry.employeeId === session.id;
+    }),
     auditLog: (state.auditLog || []).filter(r => visibleIds.has(r.employeeId) || r.actor === session.name),
     notifications: (state.notifications || []).filter(r => (!r.employeeId || r.employeeId === session.id) && (!r.forRole || r.forRole === session.role) && (!r.branchId || r.branchId === currentUser.branchId)),
     attendance: state.attendance.filter((record) => visibleIds.has(record.employeeId)),
@@ -204,7 +210,7 @@ export async function mergeScopedState(current, next, session) {
   };
   if (session.role === 'boss') Object.assign(merged, next);
   else if (session.role === 'admin') {
-    for (const collection of ['users', 'attendance', 'adjustments', 'leaveRequests', 'evaluations', 'transfers']) merged[collection] = replaceVisible(collection);
+    for (const collection of ['users', 'attendance', 'adjustments', 'leaveRequests', 'evaluations', 'transfers', 'salaryEntries']) merged[collection] = replaceVisible(collection);
     // Reports may contain multiple branches. Never replace a filtered report with its visible subset.
     const reportIds = new Set((current.payrollHistory || []).map(row => row.id));
     merged.payrollHistory = [...(current.payrollHistory || []), ...(next.payrollHistory || []).filter(row => !reportIds.has(row.id)).map(row => ({ ...row, branchId: session.branchId, savedBy: session.name }))];

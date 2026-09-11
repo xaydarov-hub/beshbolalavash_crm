@@ -67,5 +67,11 @@ export function validateChanges(current, next, changes, session) {
       if (before) fail('Saqlangan hisobot o‘zgartirilmaydi. Yangi versiyasini saqlang.');
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(row.month) || !Array.isArray(row.employees) || !row.employees.length || row.employees.some(employee => !userById.has(employee.employeeId)) || new Set(row.employees.map(employee => employee.employeeId)).size !== row.employees.length || !Number.isFinite(row.total)) fail('Oylik hisoboti noto‘g‘ri.');
     }
+    if (collection === 'salaryEntries') {
+      if (!userById.has(row.employeeId)) fail('Hisob yozuviga tegishli xodim topilmadi.');
+      if (!Number.isFinite(Number(row.rawAmount)) || Number(row.rawAmount) < 0 || Number(row.rawAmount) > 1e12) fail('Hisoblanmagan summa xato.');
+      if (!Number.isFinite(Number(row.calculatedAmount)) || Number(row.calculatedAmount) < 0 || Number(row.calculatedAmount) > 1e12) fail('Hisoblangan summa xato.');
+      if (!['boss', 'admin'].includes(session.role) && row.employeeId !== session.id) fail('Faqat o‘zingizning maosh yozuvingizni ko‘rishingiz mumkin.');
+    }
   }
 }

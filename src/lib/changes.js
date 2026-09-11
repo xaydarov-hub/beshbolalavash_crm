@@ -1,4 +1,4 @@
-export const EDITABLE_COLLECTIONS = ['users', 'branches', 'attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'payrollHistory'];
+export const EDITABLE_COLLECTIONS = ['users', 'branches', 'attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'payrollHistory', 'salaryEntries'];
 
 export function stateChanges(before, after) {
   return EDITABLE_COLLECTIONS.flatMap(collection => {
