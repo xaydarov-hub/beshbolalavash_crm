@@ -7,6 +7,8 @@ import Shell from "./components/Shell.jsx";
 import BossDashboard from "./components/boss/BossDashboard.jsx";
 import AdminDashboard from "./components/admin/AdminDashboard.jsx";
 import EmployeeDashboard from "./components/employee/EmployeeDashboard.jsx";
+import PasswordSettings from './components/PasswordSettings.jsx';
+import { dashboardPath } from './lib/roles.js';
 
 export default function App() {
   const stateRef = useRef(null);
@@ -20,6 +22,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [offline, setOffline] = useState(navigator.onLine === false);
   useEffect(() => {
     const update = () => setOffline(navigator.onLine === false);
@@ -34,6 +37,10 @@ export default function App() {
     stateRef.current = null;
     setState(null);
     setSession(null);
+    setPasswordOpen(false);
+    setError('');
+    setSyncError('');
+    window.history.replaceState(null, '', '/login');
   };
   useEffect(() => {
     const expired = () => { clearSession(); setError('Sessiya tugadi. Qayta kiring.'); };
@@ -63,10 +70,6 @@ export default function App() {
       if (data?.user) setSession(data.user);
     } catch (error) {
       if (epoch !== generation.current) return;
-      if (error.status === 401) {
-        localStorage.removeItem("bbl-crm-token");
-        setSession(null);
-      }
       setError(error.message);
     } finally { setLoading(false); setSyncing(false); }
   };
@@ -87,11 +90,11 @@ export default function App() {
         const data = await request("/api/state", { headers: { "If-None-Match": `"${session.id}:${stateRef.current?.databaseId || ""}:${revision}"` } });
         if (active && epoch === generation.current && !writes.current) {
           if (data?.state) acceptState(data.state);
+          if (data?.user) setSession(data.user);
           setSyncError("");
         }
       } catch (error) {
         if (active && error.status !== 401) setSyncError(error.message);
-        if (active && error.status === 401) { localStorage.removeItem("bbl-crm-token"); setSession(null); setError("Sessiya tugadi. Qayta kiring."); }
       } finally { inFlight = false; }
     };
     const timer = setInterval(refresh, 8000 + Math.floor(Math.random() * 2000));
@@ -141,6 +144,7 @@ export default function App() {
   };
 
   const handleLogin = async (form) => {
+    const epoch = generation.current;
     try {
       setError("");
       const payload = {
@@ -149,15 +153,35 @@ export default function App() {
       };
 
       const data = await request("/api/login", { method: "POST", body: payload, timeout: 45000 });
+      if (epoch !== generation.current) return;
       generation.current += 1;
       localStorage.setItem("bbl-crm-token", data.token);
       setSession(data.user);
       stateRef.current = data.state || null;
       setState(stateRef.current);
+      setPasswordOpen(false);
       sendTelegramMessage(`✅ CRM tizimga kirdi: ${data.user.name} (${data.user.phone})`);
     } catch (err) {
       setError(err.message || "Login xatosi");
     }
+  };
+
+  const changePassword = input => {
+    const epoch = generation.current;
+    const operation = queue.current.then(async () => {
+      if (epoch !== generation.current) return false;
+      writes.current += 1; setSaving(true); setError('');
+      try {
+        const data = await request('/api/password', { method: 'POST', body: input });
+        if (epoch !== generation.current) return false;
+        localStorage.setItem('bbl-crm-token', data.token);
+        acceptState(data.state);
+        setSession(data.user);
+        return true;
+      } finally { writes.current -= 1; setSaving(false); }
+    });
+    queue.current = operation.catch(() => {});
+    return operation;
   };
 
   const deleteUser = (employee) => {
@@ -182,37 +206,32 @@ export default function App() {
     sendTelegramMessage(`🚪 CRM tizimdan chiqildi: ${session?.name || "foydalanuvchi"}`);
   };
 
-  const handleReset = async () => {
-    if (!confirm("Barcha ma’lumotlar serverdan tozalab, yangi boshlang'ich holatga qaytariladi. Davom etilsinmi?")) return;
-    const token = localStorage.getItem("bbl-crm-token");
-    try {
-      const data = await request("/api/reset", { method: "POST" });
-      setState(data.state);
-      setSession(null);
-      localStorage.removeItem("bbl-crm-token");
-    } catch (err) {
-      setError(err.message || "Reset xatosi");
-    }
-  };
+  const liveSession = session && state?.users.find(user => user.id === session.id);
+  const accountPath = liveSession && liveSession.active !== false && ['boss', 'admin', 'employee'].includes(liveSession.role) ? dashboardPath(liveSession) : null;
+  useEffect(() => {
+    if (!accountPath) return;
+    // The server account determines the page. Editing the URL never changes access.
+    const restore = () => {
+      if (window.location.pathname !== accountPath) window.history.replaceState(null, '', accountPath);
+    };
+    restore();
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, [accountPath]);
 
   if (loading) return <div className="login-wrap"><div className="hint">Server va ma'lumotlar yuklanmoqda...</div></div>;
   if (!session) {
     return (
       <>
-        <Login users={state?.users || [{ role: "boss", phone: "beshbola.hr", year: "1122334411" }]} onLogin={handleLogin} />
+        <Login onLogin={handleLogin} />
         {error && <div className="firebase-error" role="alert">{error} {localStorage.getItem("bbl-crm-token") && <button className="btn" onClick={fetchState}>Qayta yuklash</button>}</div>}
-        {state && (
-          <div style={{ textAlign: "center", marginTop: -20 }}>
-            <button className="btn btn-sm" onClick={handleReset} style={{ opacity: 0.7 }}>↻ Boshlang'ich ma'lumotlarni tiklash</button>
-          </div>
-        )}
       </>
     );
   }
 
   if (!state) return <div className="login-wrap"><div className="hint">Ma'lumotlar yuklanmoqda...</div></div>;
-  const liveSession = state.users.find((user) => user.id === session.id) || session;
-  const notifCount = state.notifications.filter((notification) => notification.forRole === liveSession.role && !notification.read).length;
+  if (!accountPath) return <div className="login-wrap"><p role="alert">Hisob topilmadi yoki kirish roli noto‘g‘ri. Qayta kiring.</p><button className="btn" onClick={clearSession}>Kirish sahifasi</button></div>;
+  const notifCount = (state.notifications || []).filter(notification => (notification.employeeId ? notification.employeeId === liveSession.id : notification.forRole === liveSession.role) && !notification.read).length;
 
   return (
     <>
@@ -222,10 +241,12 @@ export default function App() {
       {offline && <div className="firebase-error" role="status">Internet aloqasi uzilgan. Aloqa tiklanganda ma’lumotlar avtomatik yangilanadi. Saqlanmagan amallarni qayta yuboring.</div>}
       <button className="btn" disabled={offline || saving || syncing} onClick={fetchState}>Ma’lumotlarni yangilash</button>
       {syncError && <div className="hint" role="status">{syncError} Avtomatik qayta tekshiriladi.</div>}
-      <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout}>
-        {liveSession.role === "boss" && <BossDashboard state={state} persist={persist} saveSale={saveSale} deleteUser={deleteUser} session={liveSession} firebaseMode={false} />}
-        {liveSession.role === "admin" && <AdminDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
-        {liveSession.role === "employee" && <EmployeeDashboard state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
+      <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout} onPassword={() => setPasswordOpen(value => !value)}>
+        {passwordOpen && <PasswordSettings key={liveSession.id} session={liveSession} onChangePassword={changePassword} onClose={() => setPasswordOpen(false)} />}
+        {liveSession.firstLogin && !passwordOpen && <p className="hint">Boshlang‘ich paroldan foydalanyapsiz. <button className="btn btn-sm" onClick={() => setPasswordOpen(true)}>Shaxsiy parol o‘rnating</button></p>}
+        {liveSession.role === "boss" && <BossDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} deleteUser={deleteUser} session={liveSession} firebaseMode={false} />}
+        {liveSession.role === "admin" && <AdminDashboard key={accountPath + liveSession.id + liveSession.branchId} state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
+        {liveSession.role === "employee" && <EmployeeDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
       </Shell>
     </>
   );

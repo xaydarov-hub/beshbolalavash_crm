@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { todayISO, fmt, monthKey } from "../lib/utils.js";
 import { computeEmployeeReport } from "../lib/salary.js";
+import { validDate } from './workflowSupport.js';
 
 export default function SalesPanel({ state, session, saveSale }) {
   const [date, setDate] = useState(todayISO());
@@ -18,6 +19,7 @@ export default function SalesPanel({ state, session, saveSale }) {
   </div>;
 }
 function SaleCard({ emp, date, state, editable, saveSale }) {
+  const locked = useRef(false);
   const record = (state.dailySales || []).find(r => r.employeeId === emp.id && r.date === date);
   const [amount, setAmount] = useState(String(record?.amount ?? ""));
   const [version, setVersion] = useState(record?.updatedAt ?? null);
@@ -26,18 +28,26 @@ function SaleCard({ emp, date, state, editable, saveSale }) {
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const loadSaved = () => { setAmount(String(record?.amount ?? '')); setNote(record?.note || ''); setVersion(record?.updatedAt ?? null); setDirty(false); setStatus(''); };
-  useEffect(() => { if (!dirty && !busy) loadSaved(); }, [record?.updatedAt]);
+  useEffect(() => {
+    if (!dirty && !busy) { setAmount(String(record?.amount ?? '')); setNote(record?.note || ''); setVersion(record?.updatedAt ?? null); }
+  }, [record?.updatedAt, dirty, busy]);
   const rate = record?.rate ?? emp.rate;
   const report = computeEmployeeReport(state, emp.id, monthKey(date));
   async function submit(e) {
     e.preventDefault();
-    if (busy) return;
+    if (locked.current) return;
+    if (!validDate(date) || date > todayISO()) { setStatus('Bugungi yoki oldingi sanani tanlang.'); return; }
     const value = Number(amount.replace(/\s/g, ""));
     if (!amount.trim() || !Number.isSafeInteger(value) || value < 0 || value > 1e12) { setStatus("Savdoni butun, musbat summa yoki 0 sifatida kiriting."); return; }
-    setBusy(true); setStatus("");
-    try { const savedState = await saveSale({ employeeId: emp.id, date, amount: Number(amount.replace(/\s/g, "")), note, expectedUpdatedAt: version }); setVersion(savedState?.dailySales?.find(r => r.employeeId === emp.id && r.date === date)?.updatedAt ?? version); setDirty(false); setStatus("Serverga saqlandi."); }
+    locked.current = true; setBusy(true); setStatus("");
+    try {
+      const savedState = await saveSale({ employeeId: emp.id, date, amount: value, note, expectedUpdatedAt: version });
+      const saved = savedState?.dailySales?.find(r => r.employeeId === emp.id && r.date === date);
+      if (!saved) throw new Error('Server saqlashni tasdiqlamadi. Qayta urinib ko‘ring.');
+      setVersion(saved.updatedAt ?? version); setDirty(false); setStatus("Serverga saqlandi.");
+    }
     catch (error) { setStatus(error.message); }
-    finally { setBusy(false); }
+    finally { locked.current = false; setBusy(false); }
   }
   return <form className="card card-pad" onSubmit={submit}>
     <h3 className="section-title">{emp.name}</h3>

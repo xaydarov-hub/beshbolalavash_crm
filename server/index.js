@@ -17,6 +17,8 @@ import { createStore } from './store.js';
 import { applyChanges } from './changes.js';
 import { gzip } from 'node:zlib';
 import { serverConfig } from './config.js';
+import { normalizeUserRole } from '../src/lib/roles.js';
+import { applyWorkflowEffects } from './workflows.js';
 
 const app = express();
 const { port: PORT, host: HOST, secret: JWT_SECRET } = serverConfig();
@@ -54,11 +56,11 @@ async function verifyPassword(password, storedHash) {
 async function migratePasswords(users) {
   const result = [];
   for (const user of users) {
-    const withSchedule = { workStart: '08:00', workEnd: '17:00', ...user };
-    if (withSchedule.passwordHash) { result.push(withSchedule); continue; }
+    const withSchedule = normalizeUserRole({ workStart: '08:00', workEnd: '17:00', ...user });
+    const { year, customPassword, ...safeUser } = withSchedule;
+    if (withSchedule.passwordHash) { result.push(safeUser); continue; }
     const plainPassword = withSchedule.customPassword || withSchedule.year;
     if (!plainPassword) { result.push(withSchedule); continue; }
-    const { year, customPassword, ...safeUser } = withSchedule;
     result.push({ ...safeUser, passwordHash: await hashPassword(plainPassword) });
   }
   return result;
@@ -143,23 +145,24 @@ const authMiddleware = (req, res, next) => {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) return res.status(401).json({ message: 'Token required' });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     if (!req.user.id || !['boss', 'admin', 'employee'].includes(req.user.role)) {
       return res.status(401).json({ message: 'Invalid user session' });
     }
     const liveUser = store.get().users.find(user => user.id === req.user.id);
-    if (!liveUser || liveUser.active === false || (liveUser.authVersion || 0) !== (req.user.authVersion || 0)) return res.status(401).json({ message: 'Hisob yangilangan. Qayta kiring.' });
+    if (!liveUser || liveUser.active === false || liveUser.role !== req.user.role || (liveUser.authVersion || 0) !== (req.user.authVersion || 0)) return res.status(401).json({ message: 'Hisob yangilangan. Qayta kiring.' });
+    req.user = liveUser;
     next();
   } catch {
     return res.status(401).json({ message: 'Invalid token' });
   }
 };
 
-function publicUser(user, includeSecrets = false) {
+function publicUser(user) {
   if (!user) return null;
 
   const { year, customPassword, passwordHash, ...safeUser } = user;
-  return safeUser;
+  return normalizeUserRole(safeUser);
 }
 
 export function publicState(state, session) {
@@ -170,7 +173,7 @@ export function publicState(state, session) {
   const currentUser = state.users.find((user) => user.id === session.id) || session;
   const visibleUsers = state.users.filter((user) => {
     if (user.id === session.id) return true;
-    if (session.role === 'admin') return user.branchId === currentUser.branchId;
+    if (session.role === 'admin') return Boolean(currentUser.branchId) && user.role === 'employee' && user.branchId === currentUser.branchId;
     if (session.role === 'employee') return false;
     return false;
   });
@@ -183,7 +186,7 @@ export function publicState(state, session) {
     sales: Object.fromEntries(Object.entries(state.sales || {}).filter(([key]) => [...visibleIds].some(id => key.startsWith(`${id}:`)))),
     payrollHistory: (state.payrollHistory || []).map(r => ({ ...r, employees: (r.employees || []).filter(e => visibleIds.has(e.employeeId)) })).filter(r => r.employees.length).map(r => ({ ...r, total: r.employees.reduce((sum, e) => sum + e.total, 0) })),
     auditLog: (state.auditLog || []).filter(r => visibleIds.has(r.employeeId) || r.actor === session.name),
-    notifications: (state.notifications || []).filter(r => r.employeeId === session.id || r.forRole === session.role || (!r.employeeId && !r.forRole)),
+    notifications: (state.notifications || []).filter(r => (!r.employeeId || r.employeeId === session.id) && (!r.forRole || r.forRole === session.role) && (!r.branchId || r.branchId === currentUser.branchId)),
     attendance: state.attendance.filter((record) => visibleIds.has(record.employeeId)),
     adjustments: state.adjustments.filter((record) => visibleIds.has(record.employeeId)),
     evaluations: state.evaluations.filter((record) => visibleIds.has(record.employeeId)),
@@ -193,81 +196,79 @@ export function publicState(state, session) {
 }
 
 export async function mergeScopedState(current, next, session) {
-  if (session.role === 'boss') {
-    return {
-      ...next,
-      dailySales: current.dailySales || [],
-      sales: current.sales || {},
-      users: await Promise.all((next.users || []).map(async (incomingUser) => {
-        const existingUser = current.users.find((user) => user.id === incomingUser.id);
-        if ((!existingUser || incomingUser.branchId !== existingUser.branchId) && incomingUser.role !== 'boss' && !next.branches.some(branch => branch.id === incomingUser.branchId)) throw Object.assign(new Error('Xodim yoki admin uchun mavjud filialni tanlang.'), { status: 400 });
-        if ((!existingUser || incomingUser.phone !== existingUser.phone) && (!loginKey(incomingUser.phone) || next.users.some(user => user.id !== incomingUser.id && loginKey(user.phone) === loginKey(incomingUser.phone)))) throw Object.assign(new Error('Login bo‘sh yoki boshqa hisobda ishlatilgan.'), { status: 400 });
-        const plainPassword = incomingUser.customPassword || incomingUser.year;
-        if (plainPassword) {
-          const { year, customPassword, ...safeUser } = incomingUser;
-          return { ...safeUser, authVersion: (existingUser?.authVersion || 0) + 1, passwordHash: await hashPassword(plainPassword) };
-        }
-        return existingUser?.passwordHash ? { ...incomingUser, passwordHash: existingUser.passwordHash } : incomingUser;
-      })),
-    };
-  }
   const merged = { ...current };
-  const currentUser = current.users.find((user) => user.id === session.id) || session;
-  const visibleUsers = current.users.filter((user) => {
-    if (user.id === session.id) return true;
-    if (session.role === 'admin') return user.branchId === currentUser.branchId;
-    return false;
-  });
-  const visibleIds = new Set(visibleUsers.map((user) => user.id));
-
-  if (session.role === 'admin') {
-    const adminBranchId = session.branchId || currentUser?.branchId;
-    const branchVisibleIds = new Set((current.users || []).filter((user) => user.branchId === adminBranchId).map((user) => user.id));
-    for (const collection of ['attendance', 'evaluations', 'transfers']) {
-      const incoming = Array.isArray(next[collection]) ? next[collection] : [];
-      const preserved = current[collection].filter((record) => !branchVisibleIds.has(record.employeeId) && !visibleIds.has(record.employeeId));
-      merged[collection] = [...preserved, ...incoming.filter((record) => branchVisibleIds.has(record.employeeId) || visibleIds.has(record.employeeId))];
-    }
-  }
-
-  if (session.role === 'admin') {
+  const visible = publicState(current, session);
+  const replaceVisible = collection => {
+    const ids = new Set((visible[collection] || []).map(row => row.id));
+    return [...(current[collection] || []).filter(row => !ids.has(row.id)), ...(next[collection] || [])];
+  };
+  if (session.role === 'boss') Object.assign(merged, next);
+  else if (session.role === 'admin') {
+    for (const collection of ['users', 'attendance', 'adjustments', 'leaveRequests', 'evaluations', 'transfers']) merged[collection] = replaceVisible(collection);
+    // Reports may contain multiple branches. Never replace a filtered report with its visible subset.
+    const reportIds = new Set((current.payrollHistory || []).map(row => row.id));
+    merged.payrollHistory = [...(current.payrollHistory || []), ...(next.payrollHistory || []).filter(row => !reportIds.has(row.id)).map(row => ({ ...row, branchId: session.branchId, savedBy: session.name }))];
     const auditIds = new Set((current.auditLog || []).map(row => row.id));
-    merged.auditLog = [...(next.auditLog || []).filter(row => !auditIds.has(row.id)).map(row => ({ ...row, actor: session.name })), ...(current.auditLog || [])];
-    const previousIds = new Set((current.transfers || []).map(r => r.id));
-    for (const transfer of (merged.transfers || []).filter(r => !previousIds.has(r.id))) {
-      const employee = current.users.find(u => u.id === transfer.employeeId && u.role === 'employee' && u.branchId === session.branchId);
-      if (employee && transfer.fromBranchId === employee.branchId && current.branches.some(b => b.id === transfer.toBranchId)) {
-        merged.users = (merged.users || current.users).map(u => u.id === employee.id ? { ...u, branchId: transfer.toBranchId } : u);
-      }
-    }
+    merged.auditLog = [...(next.auditLog || []).filter(row => !auditIds.has(row.id)).map(row => ({ ...row, actor: session.name, actorId: session.id, branchId: session.branchId })), ...(current.auditLog || [])];
+  } else if (session.role === 'employee') {
+    merged.leaveRequests = replaceVisible('leaveRequests');
   }
-
-  if (session.role === 'employee') {
-    const incoming = Array.isArray(next.leaveRequests) ? next.leaveRequests : [];
-    merged.leaveRequests = [
-      ...current.leaveRequests.filter((request) => request.employeeId !== session.id),
-      ...incoming.filter((request) => request.employeeId === session.id),
-    ];
+  merged.dailySales = current.dailySales || [];
+  merged.sales = current.sales || {};
+  if (session.role === 'boss' || session.role === 'admin') {
+    merged.users = await Promise.all(merged.users.map(async incoming => {
+      const existing = current.users.find(user => user.id === incoming.id);
+      // Hidden accounts remain untouched, including malformed legacy records.
+      if (incoming === existing) return existing;
+      const { year, customPassword, passwordHash, authVersion, ...safe } = incoming;
+      const password = customPassword || year;
+      const securityChanged = !existing || ['role', 'phone', 'active'].some(key => incoming[key] !== existing[key]);
+      return normalizeUserRole({ ...safe,
+        ...(password || existing?.passwordHash ? { passwordHash: password ? await hashPassword(password) : existing.passwordHash } : {}),
+        authVersion: (existing?.authVersion || 0) + (password || securityChanged ? 1 : 0),
+      });
+    }));
   }
-
   return merged;
 }
 
 const release = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || 'local';
 app.get('/api/health', (_, res) => res.json({ ok: true, release, apiVersion: 2, uptime: Math.floor(process.uptime()) }));
 
+const loginAttempts = new Map();
+function checkLoginLimit(key, res) {
+  const now = Date.now();
+  for (const [storedKey, attempt] of loginAttempts) if (attempt.until <= now) loginAttempts.delete(storedKey);
+  const attempt = loginAttempts.get(key);
+  if (attempt && attempt.count >= 12) {
+    res.set('Retry-After', String(Math.ceil((attempt.until - now) / 1000))).status(429).json({ message: 'Ko‘p marta noto‘g‘ri parol kiritildi. 15 daqiqadan keyin qayta urinib ko‘ring.' });
+    return false;
+  }
+  if (loginAttempts.size >= 10000 && !attempt) loginAttempts.delete(loginAttempts.keys().next().value);
+  loginAttempts.set(key, { count: (attempt?.count || 0) + 1, until: attempt?.until || now + 15 * 60 * 1000 });
+  return true;
+}
+
+function issueToken(user) {
+  return jwt.sign({ id: user.id, role: user.role, authVersion: user.authVersion || 0 }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '8h' });
+}
+
 app.post('/api/login', async (req, res) => {
   const body = req.body || {};
   const login = String(body.phone ?? body.login ?? body.username ?? '').trim().toLowerCase();
-  const password = String(body.pass ?? body.password ?? '').trim();
+  const password = String(body.pass ?? body.password ?? '');
   if (!login || !password || login.length > 200 || password.length > 1024) return res.status(400).json({ message: 'Login va parolni tekshiring.' });
+  const attemptKey = `${req.ip}:${loginKey(login)}`;
+  if (!checkLoginLimit(attemptKey, res)) return;
   const snapshot = store.get();
   const user = snapshot.users.find(item => loginKey(item.phone) === loginKey(login));
   if (!user || user.active === false || !await verifyPassword(password, user.passwordHash)) return res.status(401).json({ message: "Login yoki parol noto'g'ri." });
   const current = store.get();
   const liveUser = current.users.find(item => item.id === user.id);
   if (!liveUser || liveUser.active === false || liveUser.passwordHash !== user.passwordHash) return res.status(401).json({ message: 'Hisob yangilangan. Qayta kiring.' });
-  const token = jwt.sign({ id: liveUser.id, role: liveUser.role, authVersion: liveUser.authVersion || 0 }, JWT_SECRET, { expiresIn: '8h' });
+  if (!['boss', 'admin', 'employee'].includes(liveUser.role)) return res.status(401).json({ message: 'Hisob roli noto‘g‘ri. Boshliq bilan bog‘laning.' });
+  loginAttempts.delete(attemptKey);
+  const token = issueToken(liveUser);
   return sendState(req, res, { token, user: publicUser(liveUser), state: publicState(current, liveUser) });
 });
 
@@ -281,9 +282,11 @@ app.get('/api/state', authMiddleware, async (req, res) => {
   return sendState(req, res, { user: publicUser(user), state: publicState(current, user) });
 });
 
-function sessionUser(state, id) {
+function sessionUser(state, identity) {
+  const id = typeof identity === 'string' ? identity : identity.id;
   const user = state.users.find(item => item.id === id);
   if (!user || user.active === false) throw Object.assign(new Error('Sessiya tugagan.'), { status: 401 });
+  if (typeof identity === 'object' && (user.role !== identity.role || (user.authVersion || 0) !== (identity.authVersion || 0))) throw Object.assign(new Error('Hisob yangilangan. Qayta kiring.'), { status: 401 });
   return user;
 }
 function normalizeState(next, revision) {
@@ -295,46 +298,68 @@ app.put('/api/state', authMiddleware, async (req, res) => {
   const nextState = req.body?.state;
   if (!nextState) return res.status(400).json({ message: 'State not provided' });
   const updated = await store.update(async current => {
-    const user = sessionUser(current, req.user.id);
+    const user = sessionUser(current, req.user);
     if ((nextState.revision || 0) !== (current.revision || 0)) throw Object.assign(new Error('Yozuvlar yangilangan. Sahifani yangilang.'), { status: 409 });
     const visible = publicState(current, user);
     const changes = stateChanges(visible, nextState);
     const next = applyChanges(visible, changes, user);
     validateChanges(current, next, changes, user);
-    return normalizeState(await mergeScopedState(current, next, user), (current.revision || 0) + 1);
+    return normalizeState(applyWorkflowEffects(current, await mergeScopedState(current, next, user), changes, user), (current.revision || 0) + 1);
   });
   return sendState(req, res, { ok: true, state: publicState(updated, sessionUser(updated, req.user.id)) });
 });
 
 app.patch('/api/state', authMiddleware, async (req, res) => {
   const updated = await store.update(async current => {
-    const user = sessionUser(current, req.user.id);
+    const user = sessionUser(current, req.user);
     const next = applyChanges(publicState(current, user), req.body?.changes, user);
     validateChanges(current, next, req.body.changes, user);
-    return normalizeState(await mergeScopedState(current, next, user), (current.revision || 0) + 1);
+    return normalizeState(applyWorkflowEffects(current, await mergeScopedState(current, next, user), req.body.changes, user), (current.revision || 0) + 1);
   });
   return sendState(req, res, { ok: true, state: publicState(updated, sessionUser(updated, req.user.id)) });
 });
 
 app.post('/api/sales', authMiddleware, async (req, res) => {
-  const updated = await store.update(current => ({ ...applySale(current, sessionUser(current, req.user.id), req.body || {}), revision: (current.revision || 0) + 1 }));
+  const updated = await store.update(current => ({ ...applySale(current, sessionUser(current, req.user), req.body || {}), revision: (current.revision || 0) + 1 }));
   return sendState(req, res, { state: publicState(updated, sessionUser(updated, req.user.id)) });
 });
 
 app.delete('/api/users/:id', authMiddleware, async (req, res) => {
   const updated = await store.update(current => {
-    const user = sessionUser(current, req.user.id);
+    const user = sessionUser(current, req.user);
     const next = deleteAccount(current, user, req.params.id, req.body?.expectedUser, publicUser(current.users.find(row => row.id === req.params.id)));
     return next === current ? current : { ...next, revision: (current.revision || 0) + 1 };
   });
   return sendState(req, res, { ok: true, state: publicState(updated, sessionUser(updated, req.user.id)) });
 });
 
+app.post('/api/password', authMiddleware, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (typeof currentPassword !== 'string' || !currentPassword || currentPassword.length > 1024 || typeof newPassword !== 'string' || newPassword.trim().length < 8 || newPassword.length > 1024) return res.status(400).json({ message: 'Joriy parolni va kamida 8 belgili yangi parolni kiriting.' });
+  if (currentPassword === newPassword) return res.status(400).json({ message: 'Yangi parol avvalgisidan farq qilishi kerak.' });
+  const attemptKey = `password:${req.user.id}`;
+  if (!checkLoginLimit(attemptKey, res)) return;
+  // Password verification is outside the write queue so other users can save normally.
+  if (!await verifyPassword(currentPassword, req.user.passwordHash)) return res.status(400).json({ message: 'Joriy parol noto‘g‘ri.' });
+  const passwordHash = await hashPassword(newPassword);
+  const updated = await store.update(current => {
+    const user = sessionUser(current, req.user);
+    return { ...current, revision: (current.revision || 0) + 1,
+      users: current.users.map(row => row.id === user.id ? { ...row, passwordHash, authVersion: (row.authVersion || 0) + 1, firstLogin: false } : row),
+      auditLog: [{ id: uid(), actor: user.name, actorId: user.id, employeeId: user.id, action: 'Hisob paroli yangilandi.', at: new Date().toISOString() }, ...(current.auditLog || [])],
+    };
+  });
+  loginAttempts.delete(attemptKey);
+  const user = sessionUser(updated, req.user.id);
+  return sendState(req, res, { ok: true, token: issueToken(user), user: publicUser(user), state: publicState(updated, user) });
+});
+
 app.post('/api/reset', authMiddleware, async (req, res) => {
   const updated = await store.update(async current => {
-    if (sessionUser(current, req.user.id).role !== 'boss') throw Object.assign(new Error('Only the boss can reset the system'), { status: 403 });
+    const user = sessionUser(current, req.user);
+    if (user.role !== 'boss') throw Object.assign(new Error('Only the boss can reset the system'), { status: 403 });
     const next = buildState();
-    next.users = await migratePasswords(next.users);
+    next.users = [{ ...user, branchId: null }];
     return { ...next, databaseId: crypto.randomUUID(), dailySales: [], revision: (current.revision || 0) + 1 };
   });
   res.json({ ok: true, state: publicState(updated, { role: 'boss' }) });

@@ -1,8 +1,7 @@
 import React from "react";
+import { getRoleLabel } from '../lib/roles.js';
 
-const ROLE_LABEL = { boss: "👑 Boshliq", admin: "👨‍💼 Admin", employee: "👷 Xodim" };
-
-export default function Shell({ session, notifCount, onLogout, children }) {
+export default function Shell({ session, notifCount, onLogout, onPassword, children }) {
   return (
     <div className="app-shell">
       <div className="topbar">
@@ -11,7 +10,8 @@ export default function Shell({ session, notifCount, onLogout, children }) {
           {notifCount > 0 && (
             <span><span className="notif-dot" /> {notifCount} bildirishnoma</span>
           )}
-          <span className="who-session">{ROLE_LABEL[session.role]} · <b style={{ color: "var(--crust)" }}>{session.name}</b></span>
+          <span className="who-session">{getRoleLabel(session)} · <b style={{ color: "var(--crust)" }}>{session.name}</b></span>
+          {onPassword && <button className="btn btn-sm" onClick={onPassword}>Parolni almashtirish</button>}
           <button className="btn btn-sm" onClick={onLogout}>Chiqish</button>
         </div>
       </div>

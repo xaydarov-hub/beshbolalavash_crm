@@ -54,7 +54,7 @@ export default function BossDashboard({ state, persist, session, saveSale, delet
       {tab === "transfer" && <EmployeeTransfer state={state} persist={persist} session={session} />}
       {tab === "leaves" && <Leaves state={state} persist={persist} session={session} />}
       {tab === "analytics" && <Analytics state={state} />}
-      {tab === "reports" && <Reports state={state} persist={persist} />}
+      {tab === "reports" && <Reports state={state} persist={persist} session={session} />}
       {tab === "audit" && <AuditLog state={state} />}
     </div>
   );

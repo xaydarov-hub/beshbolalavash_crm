@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { fmt, todayISO, monthKey, uid } from "../../lib/utils.js";
 import { logAction } from "../../lib/db.js";
 import { computeAllReports } from "../../lib/salary.js";
+import { useSaveAction } from "../../lib/useSaveAction.js";
 
 function csvCell(value) {
   let text = String(value ?? "");
@@ -78,10 +79,13 @@ function downloadReportPng({ month, reports, branches, total }) {
   }, "image/png");
 }
 
-export default function Reports({ state, persist }) {
+export default function Reports({ state, persist, session = { role: 'boss', name: 'Boshliq' } }) {
+  const action = useSaveAction();
   const [month, setMonth] = useState(monthKey(todayISO()));
-  const [branchId, setBranchId] = useState("all");
+  const [selectedBranch, setBranchId] = useState("all");
+  const branchId = session.role === 'admin' ? session.branchId : selectedBranch;
   const reports = computeAllReports(state, month, branchId);
+  const history = [...(state.payrollHistory || [])].filter(record => branchId === 'all' || record.branchId === branchId).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   const exportCSV = () => {
     const header = ["Xodim", "Filial", "Lavozim", "Ishlagan kun", "Soat", "Savdo", "Bonus", "Jarima", "Ball jami", "Ball o'rtacha", "Jami maosh"];
@@ -111,37 +115,38 @@ export default function Reports({ state, persist }) {
   };
 
   const grand = reports.reduce((sum, report) => sum + report.total, 0);
-  const closePayroll = () => {
-    if (!reports.length) return;
-    const alreadyClosed = (state.payrollHistory || []).some((record) => record.month === month && record.branchId === branchId);
-    if (alreadyClosed && !confirm(`${month} oylik hisoboti allaqachon saqlangan. Yangi versiya bilan almashtirilsinmi?`)) return;
-    const snapshot = {
-      id: uid(), month, branchId, createdAt: new Date().toISOString(), total: grand,
-      employees: reports.map((report) => ({ employeeId: report.emp.id, name: report.emp.name, worked: report.worked, hours: report.totalHours, sales: report.sales, saleRecords: report.saleRecords, base: report.base, bonuses: report.bonuses, fines: report.fines, total: report.total })),
-    };
-    persist((current) => logAction(
-      { ...current, payrollHistory: [...(current.payrollHistory || []).filter((record) => !(record.month === month && record.branchId === branchId)), snapshot] },
-      "Boshliq", `${month} oylik hisoboti saqlandi. Jami: ${fmt(grand)} so'm.`
-    ));
+  const closePayroll = async () => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !reports.length || !branchId) { action.setMessage('Hisobot oyi va xodim mavjud filialni tanlang.'); return; }
+    await action.run(() => persist(current => {
+      const freshReports = computeAllReports(current, month, branchId);
+      if (!freshReports.length) throw new Error('Hisobot uchun xodim yo‘q.');
+      const total = freshReports.reduce((sum, report) => sum + report.total, 0);
+      const snapshot = {
+        id: uid(), month, branchId, createdAt: new Date().toISOString(), savedBy: session.name, total,
+        employees: freshReports.map(report => ({ employeeId: report.emp.id, name: report.emp.name, branchId: report.emp.branchId, position: report.emp.position, worked: report.worked, hours: report.totalHours, sales: report.sales, saleRecords: report.saleRecords, base: report.base, bonuses: report.bonuses, fines: report.fines, evaluation: report.evaluation, total: report.total })),
+      };
+      return logAction({ ...current, payrollHistory: [...(current.payrollHistory || []), snapshot] }, session.name, `${month} oylik hisoboti saqlandi. Jami: ${fmt(total)} so‘m.`);
+    }), 'Oylikning yangi nusxasi saqlandi. Oldingi nusxalar tarixda qoldi.');
   };
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input type="month" className="input" style={{ width: 155 }} value={month} onChange={(event) => setMonth(event.target.value)} />
-          <select className="input" style={{ width: 220 }} value={branchId} onChange={(event) => setBranchId(event.target.value)}>
+          <input aria-label="Hisobot oyi" disabled={action.busy} type="month" className="input" style={{ width: 155 }} value={month} onChange={(event) => setMonth(event.target.value)} />
+          {session.role === 'boss' ? <select aria-label="Hisobot filiali" className="input" style={{ width: 220 }} disabled={action.busy} value={branchId} onChange={(event) => setBranchId(event.target.value)}>
             <option value="all">Barcha filiallar</option>
             {state.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-          </select>
+          </select> : <span className="badge badge-blue">{state.branches.find(branch => branch.id === branchId)?.name}</span>}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="btn btn-green" onClick={exportCSV}>⬇ CSV yuklab olish</button>
-          <button className="btn btn-primary" onClick={() => downloadReportPng({ month, reports, branches: state.branches, total: grand })}>🖼 PNG hisobot</button>
-          <button className="btn btn-primary" onClick={closePayroll}>✅ Oylikni saqlash</button>
+          <button className="btn btn-green" disabled={!month || !reports.length} onClick={exportCSV}>⬇ CSV yuklab olish</button>
+          <button className="btn btn-primary" disabled={!month || !reports.length} onClick={() => downloadReportPng({ month, reports, branches: state.branches, total: grand })}>🖼 PNG hisobot</button>
+          <button className="btn btn-primary" disabled={action.busy || !month || !reports.length} onClick={closePayroll}>{action.busy ? 'Saqlanmoqda...' : '✅ Oylikni saqlash'}</button>
         </div>
       </div>
 
+      {action.message && <p role="status">{action.message}</p>}
       <ResponsiveTable>
         <div className="trow thead" style={{ gridTemplateColumns: "1.15fr 0.85fr 0.45fr 0.5fr 0.8fr 0.65fr 0.65fr 0.65fr 0.8fr" }}>
           <div>Xodim</div><div>Filial</div><div>Kun</div><div>Soat</div><div>Savdo</div><div>Bonus</div><div>Jarima</div><div>Ball</div><div>Jami</div>
@@ -163,14 +168,16 @@ export default function Reports({ state, persist }) {
       </ResponsiveTable>
       <h3 className="section-title" style={{ marginTop: 26 }}>Saqlangan oyliklar tarixi</h3>
       <ResponsiveTable>
-        {(state.payrollHistory || []).length === 0 && <div className="empty">Hali saqlangan oylik yo'q.</div>}
-        {[...(state.payrollHistory || [])].reverse().map((record) => (
-          <div key={record.id} className="trow" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
-            <span><b>{record.month}</b></span>
-            <span className="muted">{record.employees?.length || 0} xodim</span>
-            <span className="muted">{record.createdAt?.slice(0, 10)}</span>
-            <span style={{ color: "var(--sauce)", fontWeight: 700 }}>{fmt(record.total)} so'm</span>
-          </div>
+        {history.length === 0 && <div className="empty">Hali saqlangan oylik yo'q.</div>}
+        {history.map((record) => (
+          <details key={record.id} className="card card-pad">
+            <summary><b>{record.month}</b> · {record.branchId === 'all' ? 'Barcha filiallar' : state.branches.find(branch => branch.id === record.branchId)?.name || 'Filial'} · {record.employees?.length || 0} xodim · {fmt(record.total)} so‘m</summary>
+            <p className="hint">Saqlangan: {record.createdAt?.replace('T', ' ').slice(0, 19)} · {record.savedBy || 'Boshliq'}</p>
+            <ResponsiveTable>
+              <div className="trow thead" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr' }}><div>Xodim</div><div>Asosiy maosh</div><div>Bonus</div><div>Jarima</div><div>Jami</div></div>
+              {(record.employees || []).map(employee => <div key={employee.employeeId} className="trow" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr' }}><div>{employee.name}</div><div>{fmt(employee.base)}</div><div>{fmt(employee.bonuses)}</div><div>{fmt(employee.fines)}</div><div>{fmt(employee.total)}</div></div>)}
+            </ResponsiveTable>
+          </details>
         ))}
       </ResponsiveTable>
       <div className="hint">Hisob: asosiy maosh + bonus − jarima. Savdoni «Kunlik savdo» bo‘limida kiriting; ball xizmat sifati ko'rsatkichi bo'lib, maoshga avtomatik qo'shilmaydi.</div>

@@ -44,3 +44,17 @@ it('never sends new write formats to a legacy backend', () => {
   expect(() => requireCurrentApi({ users: [] })).toThrow(/yangilanishi/);
   expect(() => requireCurrentApi({ revision: 0, dailySales: [] })).not.toThrow();
 });
+it('rejects login responses with contradictory access roles', async () => {
+  global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token: 'wrong-role', user: { id: 'e', role: 'admin' }, state: { users: [{ id: 'e', role: 'employee' }], branches: [] } }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  await expect(request('/api/login', { method: 'POST', body: { phone: 'e', pass: 'password' } })).rejects.toThrow(/rolini tasdiqlamadi/);
+});
+it('a delayed rejection from an old token does not expire a newer session', async () => {
+  localStorage.setItem('bbl-crm-token', 'old-token');
+  let finish;
+  global.fetch = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const rejected = expect(request('/api/state')).rejects.toMatchObject({ status: 401 });
+  localStorage.setItem('bbl-crm-token', 'new-token');
+  finish(new Response('', { status: 401 }));
+  await rejected;
+  expect(localStorage.getItem('bbl-crm-token')).toBe('new-token');
+});

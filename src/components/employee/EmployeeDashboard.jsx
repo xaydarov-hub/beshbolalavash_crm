@@ -6,6 +6,8 @@ import React, { useState } from "react";
 import { fmt, todayISO, monthKey, fmtHours } from "../../lib/utils.js";
 import { computeEmployeeReport, SALARY_TYPES } from "../../lib/salary.js";
 import { uid } from "../../lib/utils.js";
+import { getJobRole, jobLabel } from "../../lib/roles.js";
+import JobWorkspace from "./JobWorkspace.jsx";
 
 export default function EmployeeDashboard({ state, persist, session, saveSale }) {
   const [tab, setTab] = useState("dashboard");
@@ -15,24 +17,28 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
   if (!r) return <p className="empty" role="status">Xodim profili topilmadi. Ma’lumotlarni yangilang yoki qayta kiring.</p>;
 
   const myLeaves = state.leaveRequests.filter((l) => l.employeeId === session.id);
+  const hasSales = session.salaryType === "foiz" || (state.dailySales || []).some(record => record.employeeId === session.id);
 
   return (
-    <div>
-      <div className="tabs">
-        <button className={`tab-btn ${tab === "sales" ? "active" : ""}`} onClick={() => setTab("sales")}>Kunlik savdo</button>
+    <div data-job-page={getJobRole(session)}>
+      <h2 className="section-title">{jobLabel(session)} sahifasi</h2>
+      <p className="hint">{session.name} · {branch?.name || "Filial biriktirilmagan"}</p>
+      <nav className="tabs" aria-label={`${jobLabel(session)} bo‘limlari`}>
+        {hasSales && <button className={`tab-btn ${tab === "sales" ? "active" : ""}`} onClick={() => setTab("sales")}>Kunlik savdo</button>}
         <button className={`tab-btn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>Xodim tarixi</button>
         <button className={`tab-btn ${tab === "dashboard" ? "active" : ""}`} onClick={() => setTab("dashboard")}>🏠 Bosh sahifa</button>
         <button className={`tab-btn ${tab === "attendance" ? "active" : ""}`} onClick={() => setTab("attendance")}>🕐 Davomat tarixi</button>
         <button className={`tab-btn ${tab === "leaves" ? "active" : ""}`} onClick={() => setTab("leaves")}>🏖 Ta'til so'rash</button>
         <button className={`tab-btn ${tab === "points" ? "active" : ""}`} onClick={() => setTab("points")}>⭐ Ballarim</button>
         <button className={`tab-btn ${tab === "profile" ? "active" : ""}`} onClick={() => setTab("profile")}>👤 Profil</button>
-      </div>
-      {tab === "sales" && <SalesPanel state={state} session={session} saveSale={saveSale} />}
+      </nav>
+      {tab === "sales" && hasSales && <SalesPanel state={state} session={session} saveSale={saveSale} />}
 
       {tab === "history" && <EmployeeHistory state={state} employeeId={session.id} />}
-      <label className="field">Hisobot oyi<input type="month" className="input" value={month} onChange={e => setMonth(e.target.value)} /></label>
+      {["dashboard", "attendance", "points"].includes(tab) && <label className="field">Hisobot oyi<input type="month" className="input" value={month} onChange={e => setMonth(e.target.value)} /></label>}
       {tab === "dashboard" && (
         <div>
+          <JobWorkspace state={state} session={session} report={r} hasSales={hasSales} onNavigate={setTab} />
           <p style={{ fontSize: 15, marginBottom: 18 }}>Salom, {session.name} 👋</p>
           <div className="grid grid-4 section-gap">
             <div className="stat-card"><div className="label">⏱ Ishlagan kun</div><div className="value">{r.worked}</div></div>
@@ -111,8 +117,10 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
           <div className="grid grid-2">
             <div><div className="muted" style={{ fontSize: 12 }}>📞 Telefon</div><div>{session.phone}</div></div>
             <div><div className="muted" style={{ fontSize: 12 }}>🏢 Filial</div><div>{branch?.name}</div></div>
-            <div><div className="muted" style={{ fontSize: 12 }}>💼 Lavozim</div><div>{session.position}</div></div>
+            <div><div className="muted" style={{ fontSize: 12 }}>💼 Lavozim</div><div>{session.position || jobLabel(session)}</div></div>
             <div><div className="muted" style={{ fontSize: 12 }}>📅 Ishga kirgan</div><div>{session.hireDate}</div></div>
+            <div><div className="muted" style={{ fontSize: 12 }}>Ish vaqti</div><div>{session.workStart || "—"} – {session.workEnd || "—"}</div></div>
+            <div><div className="muted" style={{ fontSize: 12 }}>Maosh turi / stavka</div><div>{SALARY_TYPES.find(type => type.id === session.salaryType)?.label} · {session.salaryType === "foiz" ? `${session.rate}%` : `${fmt(session.rate)} so‘m`}</div></div>
           </div>
         </div>
       )}
@@ -127,26 +135,28 @@ function LeaveRequestForm({ persist, session, myLeaves }) {
   const [type, setType] = useState("tatil");
   const [reason, setReason] = useState("");
 
-  const submit = async () => {
-    if (!from || !to || (Date.parse(to) - Date.parse(from)) / 86400000 > 365) { action.setMessage("Sanalarni kiriting. Davr bir yildan oshmasin."); return; }
-    if (!reason.trim()) { alert("Sababni yozing."); return; }
-    if (to < from) { alert("Tugash sanasi boshlanish sanasidan oldin bo'lmasligi kerak."); return; }
-    const ok = await action.run(() => persist((s) => ({
-      ...s,
-      leaveRequests: [...s.leaveRequests, { id: uid(), employeeId: session.id, from, to, type, reason: reason.trim(), status: "kutilmoqda", requestedAt: todayISO() }],
-    })));
+  const submit = async event => {
+    event.preventDefault();
+    if (!from || !to || !Number.isFinite(Date.parse(from)) || !Number.isFinite(Date.parse(to)) || (Date.parse(to) - Date.parse(from)) / 86400000 > 365) { action.setMessage("Sanalarni kiriting. Davr bir yildan oshmasin."); return; }
+    if (!reason.trim()) { action.setMessage("Sababni yozing."); return; }
+    if (to < from) { action.setMessage("Tugash sanasi boshlanish sanasidan oldin bo‘lmasligi kerak."); return; }
+    const ok = await action.run(() => persist(s => {
+      if (s.leaveRequests.some(request => request.employeeId === session.id && request.status !== "radetildi" && request.from <= to && request.to >= from)) throw new Error("Bu sanalar uchun kutilayotgan yoki tasdiqlangan so‘rovingiz bor.");
+      return { ...s, leaveRequests: [...s.leaveRequests, { id: uid(), employeeId: session.id, from, to, type, reason: reason.trim(), status: "kutilmoqda", requestedAt: todayISO() }] };
+    }), "So‘rov serverga yuborildi. Tasdiqlash holatini quyida kuzating.");
     if (ok) setReason("");
   };
 
   return (
     <div>
-      <div className="card card-pad section-gap" style={{ maxWidth: 480 }}>
+      <form className="card card-pad section-gap" style={{ maxWidth: 480 }} onSubmit={submit}>
         <h3 className="section-title">Yangi so'rov</h3>
+        <fieldset disabled={action.busy} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className="grid grid-2">
           <label className="field"><div className="label">Boshlanish sanasi</div>
-            <input type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+            <input required type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
           <label className="field"><div className="label">Tugash sanasi</div>
-            <input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+            <input required type="date" className="input" min={from} value={to} onChange={(e) => setTo(e.target.value)} /></label>
         </div>
         <label className="field"><div className="label">Turi</div>
           <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
@@ -154,9 +164,10 @@ function LeaveRequestForm({ persist, session, myLeaves }) {
             <option value="kasal">Kasallik</option>
           </select></label>
         <label className="field"><div className="label">Sababi</div>
-          <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-        <button className="btn btn-primary" disabled={action.busy} onClick={submit}>Yuborish</button>
-      </div>
+          <input required maxLength={1000} className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+        <button className="btn btn-primary" type="submit" disabled={action.busy}>{action.busy ? "Yuborilmoqda..." : "Yuborish"}</button>
+        </fieldset>
+      </form>
 
       {action.message && <p role="status">{action.message}</p>}
       <h3 className="section-title">Mening so'rovlarim</h3>

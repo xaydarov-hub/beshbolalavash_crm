@@ -21,7 +21,7 @@ it('does not lose simultaneous updates or publish failed writes', async () => {
   expect(store.get().n).toBe(15);
 });
 const admin = { id: 'a', role: 'admin', branchId: 'b' };
-const initial = { users: [{ id: 'e1', branchId: 'b' }, { id: 'e2', branchId: 'b' }], attendance: [{ id: 'r1', employeeId: 'e1', date: '2026-01-01', status: 'kelmadi' }, { id: 'r2', employeeId: 'e2', date: '2026-01-01', status: 'kelmadi' }] };
+const initial = { users: [{ id: 'e1', role: 'employee', branchId: 'b' }, { id: 'e2', role: 'employee', branchId: 'b' }], attendance: [{ id: 'r1', employeeId: 'e1', date: '2026-01-01', status: 'kelmadi' }, { id: 'r2', employeeId: 'e2', date: '2026-01-01', status: 'kelmadi' }] };
 it('merges independent stale edits while rejecting conflicts on the same record', () => {
   const next1 = { ...initial, attendance: initial.attendance.map(r => r.id === 'r1' ? { ...r, status: 'keldi' } : r) };
   const next2 = { ...initial, attendance: initial.attendance.map(r => r.id === 'r2' ? { ...r, status: 'keldi' } : r) };

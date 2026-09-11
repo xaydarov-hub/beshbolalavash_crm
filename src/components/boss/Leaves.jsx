@@ -1,66 +1,39 @@
-import ResponsiveTable from "../ResponsiveTable.jsx";
-import React from "react";
-import { logAction } from "../../lib/db.js";
-import { addDays, uid } from "../../lib/utils.js";
+﻿import React, { useState } from 'react';
+import ResponsiveTable from '../ResponsiveTable.jsx';
+import { logAction } from '../../lib/db.js';
+import { useSaveAction } from '../../lib/useSaveAction.js';
+import { managesEmployee } from '../workflowSupport.js';
 
 export default function Leaves({ state, persist, session }) {
-  const requests = [...state.leaveRequests].sort((a, b) => (Number(b.status === "kutilmoqda") - Number(a.status === "kutilmoqda")));
-
-  const decide = (req, status) => {
-    if (!req.from || !req.to || !Number.isFinite(Date.parse(req.from)) || !Number.isFinite(Date.parse(req.to)) || req.to < req.from || (Date.parse(req.to) - Date.parse(req.from)) / 86400000 > 365) { alert("Sanalar noto‘g‘ri. So‘rovni tuzatish kerak."); return; }
-    const emp = state.users.find((u) => u.id === req.employeeId);
-    persist((s) => {
-      let attendance = s.attendance;
-      if (status === "tasdiqlandi") {
-        const dates = [];
-        for (let day = req.from; day <= req.to; day = addDays(day, 1)) dates.push(day);
-        const byDate = new Map(s.attendance.map((item) => [`${item.employeeId}:${item.date}`, item]));
-        dates.forEach((date) => {
-          const key = `${req.employeeId}:${date}`;
-          const existing = byDate.get(key);
-          // A verified workday is never silently replaced by an approved leave.
-          if (existing?.status === "keldi") return;
-          byDate.set(key, { id: existing?.id || uid(), employeeId: req.employeeId, date, status: req.type, checkIn: "", checkOut: "", late: false });
-        });
-        attendance = Array.from(byDate.values());
-      }
-      return logAction(
-      { ...s, attendance, leaveRequests: s.leaveRequests.map((r) => (r.id === req.id ? { ...r, status } : r)) },
-      session.name,
-      `${emp?.name} so'ragan ta'til/dam olishni ${status === "tasdiqlandi" ? "tasdiqladi" : "rad etdi"} (${req.from} — ${req.to}).`
-      );
-    });
+  const action = useSaveAction();
+  const [filter, setFilter] = useState('all');
+  const ids = new Set(state.users.filter(user => managesEmployee(session, user)).map(user => user.id));
+  const requests = [...(state.leaveRequests || [])].filter(record => ids.has(record.employeeId) && (filter === 'all' || record.status === filter)).sort((a, b) => Number(b.status === 'kutilmoqda') - Number(a.status === 'kutilmoqda') || b.from.localeCompare(a.from));
+  const decide = async (request, status) => {
+    await action.run(() => persist(current => {
+      const live = (current.leaveRequests || []).find(record => record.id === request.id);
+      if (!live || live.status !== 'kutilmoqda') throw new Error('So‘rov allaqachon ko‘rib chiqilgan. Ro‘yxatni yangilang.');
+      const employee = current.users.find(user => user.id === live.employeeId);
+      if (!managesEmployee(session, employee)) throw new Error('Bu xodim so‘rovini boshqarishga ruxsat yo‘q.');
+      // The server writes the approved leave days in the same transaction.
+      return logAction({ ...current, leaveRequests: current.leaveRequests.map(record => record.id === live.id ? { ...record, status } : record) }, session.name, `${employee.name}ning ${live.from} — ${live.to} ta’til so‘rovini ${status === 'tasdiqlandi' ? 'tasdiqladi' : 'rad etdi'}.`);
+    }), status === 'tasdiqlandi' ? 'Ta’til tasdiqlandi va davomatga yozildi. Ishlagan kunlar saqlandi.' : 'So‘rov rad etildi.');
   };
-
-  return (
+  return <div>
+    <label className="field" style={{ maxWidth: 320 }}>So‘rov holati<select className="input" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">Barcha so‘rovlar</option><option value="kutilmoqda">Kutilmoqda</option><option value="tasdiqlandi">Tasdiqlandi</option><option value="radetildi">Rad etildi</option></select></label>
+    {action.message && <p role="status">{action.message}</p>}
     <ResponsiveTable>
-      <div className="trow thead" style={{ gridTemplateColumns: "1.1fr 0.7fr 1fr 1.4fr 1fr" }}>
-        <div>Xodim</div><div>Turi</div><div>Sana</div><div>Sabab</div><div>Holati</div>
-      </div>
-      {requests.length === 0 && <div className="empty">So'rovlar yo'q.</div>}
-      {requests.map((r) => {
-        const emp = state.users.find((u) => u.id === r.employeeId);
-        return (
-          <div key={r.id} className="trow" style={{ gridTemplateColumns: "1.1fr 0.7fr 1fr 1.4fr 1fr" }}>
-            <div>{emp?.name}</div>
-            <div><span className={`badge ${r.type === "kasal" ? "badge-yellow" : "badge-blue"}`}>{r.type === "kasal" ? "Kasal" : "Ta'til"}</span></div>
-            <div className="muted" style={{ fontSize: 12.5 }}>{r.from} — {r.to}</div>
-            <div className="muted">{r.reason}</div>
-            <div>
-              {r.status === "kutilmoqda" ? (
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn btn-sm btn-green" onClick={() => decide(r, "tasdiqlandi")}>✓ Tasdiqlash</button>
-                  <button className="btn btn-sm btn-red" onClick={() => decide(r, "radetildi")}>✕ Rad etish</button>
-                </div>
-              ) : (
-                <span className={`badge ${r.status === "tasdiqlandi" ? "badge-green" : "badge-red"}`}>
-                  {r.status === "tasdiqlandi" ? "Tasdiqlandi" : "Rad etildi"}
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
+      <div className="trow thead" style={{ gridTemplateColumns: '1.1fr 0.7fr 1fr 1.4fr 1fr' }}><div>Xodim</div><div>Turi</div><div>Sana</div><div>Sabab</div><div>Holati</div></div>
+      {!requests.length && <div className="empty">So'rovlar yo'q.</div>}
+      {requests.map(record => <div key={record.id} className="trow" style={{ gridTemplateColumns: '1.1fr 0.7fr 1fr 1.4fr 1fr' }}>
+        <div>{state.users.find(user => user.id === record.employeeId)?.name}</div>
+        <div><span className={`badge ${record.type === 'kasal' ? 'badge-yellow' : 'badge-blue'}`}>{record.type === 'kasal' ? 'Kasal' : "Ta'til"}</span></div>
+        <div className="muted">{record.from} — {record.to}</div><div className="muted">{record.reason}</div>
+        <div>{record.status === 'kutilmoqda' ? <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-sm btn-green" disabled={action.busy} onClick={() => decide(record, 'tasdiqlandi')}>Tasdiqlash</button>
+          <button className="btn btn-sm btn-red" disabled={action.busy} onClick={() => decide(record, 'radetildi')}>Rad etish</button>
+        </div> : <span className={`badge ${record.status === 'tasdiqlandi' ? 'badge-green' : 'badge-red'}`}>{record.status === 'tasdiqlandi' ? 'Tasdiqlandi' : 'Rad etildi'}</span>}</div>
+      </div>)}
     </ResponsiveTable>
-  );
+  </div>;
 }

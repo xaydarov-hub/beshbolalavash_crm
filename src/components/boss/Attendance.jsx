@@ -1,18 +1,22 @@
 import ResponsiveTable from "../ResponsiveTable.jsx";
 import React, { useState } from "react";
-import { todayISO, fmtHours, hoursBetween, isLate } from "../../lib/utils.js";
+import { todayISO, fmtHours, hoursBetween, isLate, uid } from "../../lib/utils.js";
 import { logAction } from "../../lib/db.js";
+import { useSaveAction } from "../../lib/useSaveAction.js";
+import { managesEmployee, validDate } from "../workflowSupport.js";
 
 const STATUS_LABEL = { keldi: "Keldi", kelmadi: "Kelmadi", tatil: "Ta'til", kasal: "Kasal" };
 const STATUS_BADGE = { keldi: "badge-green", kelmadi: "badge-red", tatil: "badge-blue", kasal: "badge-yellow" };
 
 export default function Attendance({ state, persist, session }) {
+  const action = useSaveAction();
   const [date, setDate] = useState(todayISO());
   const [branchId, setBranchId] = useState("all");
   const [showAbsentOnly, setShowAbsentOnly] = useState(false);
 
   const employees = state.users
     .filter((u) => u.active !== false && (u.role === "employee" || u.role === "admin"))
+    .filter((u) => session.role === 'boss' || managesEmployee(session, u))
     .filter((u) => branchId === "all" || u.branchId === branchId);
 
   const getRec = (empId) => state.attendance.find((a) => a.employeeId === empId && a.date === date);
@@ -27,33 +31,36 @@ export default function Attendance({ state, persist, session }) {
     return acc;
   }, {});
 
-  const updateStatus = (emp, patch) => {
-    persist((s) => {
+  const updateStatus = async (emp, patch) => {
+    if (!validDate(date)) { action.setMessage('Sanani tanlang.'); return; }
+    await action.run(() => persist((s) => {
+      const live = s.users.find(user => user.id === emp.id);
+      if (!live || live.active === false || (session.role !== 'boss' && !managesEmployee(session, live))) throw new Error('Xodimni boshqarishga ruxsat yo‘q. Ro‘yxatni yangilang.');
       const existing = s.attendance.find((a) => a.employeeId === emp.id && a.date === date);
       const normalizedPatch = patch.status && patch.status !== "keldi"
         ? { ...patch, checkIn: "", checkOut: "", late: false }
         : patch.checkIn !== undefined
-          ? { ...patch, late: isLate(patch.checkIn, emp.workStart) }
+          ? { ...patch, late: isLate(patch.checkIn, live.workStart) }
           : patch;
       let attendance;
       if (existing) {
         attendance = s.attendance.map((a) => (a === existing ? { ...a, ...normalizedPatch } : a));
       } else {
-        attendance = [...s.attendance, { id: crypto.randomUUID?.() || String(Math.random()), employeeId: emp.id, date, status: "keldi", checkIn: "", checkOut: "", late: false, ...normalizedPatch }];
+        attendance = [...s.attendance, { id: uid(), employeeId: emp.id, date, status: "keldi", checkIn: "", checkOut: "", late: false, ...normalizedPatch }];
       }
       const label = normalizedPatch.status === "kelmadi" ? "kelmagan" : normalizedPatch.status === "tatil" ? "ta'tilda" : normalizedPatch.status === "kasal" ? "kasal" : normalizedPatch.checkIn !== undefined ? `${normalizedPatch.checkIn} da kelgan` : normalizedPatch.checkOut !== undefined ? `${normalizedPatch.checkOut} da ketgan` : "kelgan";
       return logAction({ ...s, attendance }, session.name, `${emp.name}ni ${date} kuni "${label}" deb belgiladi.`);
-    });
+    }));
   };
 
   return (
     <div>
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <input type="date" className="input" style={{ width: 170 }} value={date} onChange={(e) => setDate(e.target.value)} />
-        <select className="input" style={{ width: 220 }} value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+        <input aria-label="Davomat sanasi" type="date" disabled={action.busy} className="input" style={{ width: 170 }} value={date} onChange={(e) => { setDate(e.target.value); action.setMessage(''); }} />
+        {session.role === 'boss' && <select aria-label="Filial" className="input" style={{ width: 220 }} value={branchId} onChange={(e) => setBranchId(e.target.value)}>
           <option value="all">Barcha filiallar</option>
           {state.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
+        </select>}
         <button className={`btn btn-sm ${showAbsentOnly ? "btn-red" : ""}`} onClick={() => setShowAbsentOnly((v) => !v)}>
           🔴 Bugun kim kelmadi?
         </button>
@@ -62,6 +69,7 @@ export default function Attendance({ state, persist, session }) {
         </span>
       </div>
 
+      {action.message && <p role="status">{action.message}</p>}
       <ResponsiveTable>
         <div className="trow thead" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 0.8fr" }}>
           <div>Xodim</div><div>Holati</div><div>Keldi</div><div>Ketdi</div><div>Ish vaqti</div><div>Kechikish</div>
@@ -72,7 +80,7 @@ export default function Attendance({ state, persist, session }) {
           return (
             <div key={emp.id} className="trow" style={{ gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 0.8fr" }}>
               <div>{emp.name}</div>
-              <select className="input" style={{ padding: "5px 8px" }} value={r.status}
+              <select aria-label={`${emp.name} holati`} disabled={action.busy || !date} className="input" style={{ padding: "5px 8px" }} value={r.status}
                 onChange={(e) => updateStatus(emp, { status: e.target.value })}>
                 <option value="" disabled>Belgilanmagan</option>
                 <option value="keldi">Keldi</option>
@@ -80,9 +88,9 @@ export default function Attendance({ state, persist, session }) {
                 <option value="tatil">Ta'til</option>
                 <option value="kasal">Kasal</option>
               </select>
-              <input type="time" className="input" style={{ padding: "5px 8px" }} placeholder="08:00" disabled={r.status !== "keldi"}
+              <input aria-label={`${emp.name} kelgan vaqti`} type="time" className="input" style={{ padding: "5px 8px" }} placeholder="08:00" disabled={action.busy || r.status !== "keldi"}
                 value={r.checkIn} onChange={(e) => updateStatus(emp, { checkIn: e.target.value })} />
-              <input type="time" className="input" style={{ padding: "5px 8px" }} placeholder="17:00" disabled={r.status !== "keldi"}
+              <input aria-label={`${emp.name} ketgan vaqti`} type="time" className="input" style={{ padding: "5px 8px" }} placeholder="17:00" disabled={action.busy || r.status !== "keldi"}
                 value={r.checkOut} onChange={(e) => updateStatus(emp, { checkOut: e.target.value })} />
               <div className="muted" style={{ fontSize: 12.5 }}>{r.status === "keldi" && r.checkIn && r.checkOut ? fmtHours(hrs) : "—"}</div>
               <div>
