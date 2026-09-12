@@ -30,6 +30,9 @@ export function computeEmployeeReport(state, employeeId, month) {
   const fines = adj.filter((a) => a.type === "jarima").reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
   const saleRecords = (state.dailySales || []).filter(a => a.employeeId === employeeId && monthKey(a.date) === month);
+  const salaryEntryRecords = (state.salaryEntries || []).filter(entry => entry.employeeId === employeeId && !entry.isDeleted && monthKey(entry.date) === month);
+  const salaryEntryCommission = salaryEntryRecords.reduce((sum, entry) => sum + (Number(entry.calculatedAmount) || 0), 0);
+  const salaryEntryRawAmount = salaryEntryRecords.reduce((sum, entry) => sum + (Number(entry.rawAmount) || 0), 0);
   const legacySales = Number(state.sales?.[`${employeeId}:${month}`]) || 0;
   const sales = legacySales + saleRecords.reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
 
@@ -52,6 +55,8 @@ export function computeEmployeeReport(state, employeeId, month) {
       base = 0;
   }
 
+  // Entries are additive commission records; closing a cycle never adds them twice.
+  base += salaryEntryCommission;
   const total = base + bonuses - fines;
   const evaluation = employeeEvaluationStats(state, employeeId, month);
 
@@ -66,6 +71,9 @@ export function computeEmployeeReport(state, employeeId, month) {
     fines,
     sales,
     saleRecords,
+    salaryEntryRecords,
+    salaryEntryCommission,
+    salaryEntryRawAmount,
     legacySales,
     base,
     total,

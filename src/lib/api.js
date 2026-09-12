@@ -53,9 +53,10 @@ export async function request(path, { method = 'GET', body, headers = {}, timeou
       const message = data?.message || (response.status === 401 ? 'Sessiya tugadi. Qayta kiring.' : 'So‘rov bajarilmadi.');
       throw Object.assign(new Error(message), { status: response.status });
     }
-    if (path === '/api/state' || path === '/api/login' || path === '/api/password' || path === '/api/sales' || path.startsWith('/api/users/')) {
+    if (path === '/api/state' || path === '/api/login' || path === '/api/password' || path === '/api/sales' || path.startsWith('/api/salary-') || path.startsWith('/api/users/')) {
       if (!data?.state || !Array.isArray(data.state.users) || !Array.isArray(data.state.branches)) throw new Error('Server to‘liq ma’lumot qaytarmadi. Qayta urinib ko‘ring.');
     }
+    if (path.startsWith('/api/salary-') && (data.state.salaryEntryApiVersion !== 1 || !['salaryEntries', 'salarySettlements', 'trash'].every(key => Array.isArray(data.state[key])))) throw new Error('Server maosh yozuvlarini to‘liq qaytarmadi. Ma’lumotlarni yangilab tekshiring.');
     if (path === '/api/login' || path === '/api/password') {
       const account = data.state.users.find(user => user.id === data.user?.id);
       if (!data.token || !account || account.active === false || !['boss', 'admin', 'employee'].includes(account.role) || account.role !== data.user.role) {

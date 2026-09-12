@@ -14,8 +14,10 @@ export function validateChanges(current, next, changes, session) {
   const userById = new Map(next.users.map(user => [user.id, user]));
   const branchIds = new Set(next.branches.map(branch => branch.id));
   for (const { collection, id, before, after: row } of changes) {
+    if (['salaryEntries', 'salarySettlements', 'trash'].includes(collection)) fail('Maosh yozuvlari uchun maosh kiritish, yakunlash yoki korzinka amalidan foydalaning.');
     if (!before && row && (current[collection] || []).some(existing => existing.id === id)) throw Object.assign(new Error('Bu yozuv identifikatori allaqachon mavjud.'), { status: 409 });
     if (!row) {
+      if (collection === 'branches' && ['salaryEntries', 'salarySettlements', 'trash'].some(key => (current[key] || []).some(record => record.branchId === before.id))) fail('Bu filialga tegishli maosh yoki yakunlash tarixi bor. Filialni o‘chirish mumkin emas.');
       if (collection === 'users') fail('Xodim tarixini saqlash uchun uni arxivlang.');
       if (['transfers', 'payrollHistory'].includes(collection)) fail('Saqlangan tarix o‘chirilmaydi. Yangi yozuv yoki hisobot versiyasini yarating.');
       if (collection === 'branches' && (next.users.some(u => u.branchId === before.id) || next.transfers.some(r => r.fromBranchId === before.id || r.toBranchId === before.id))) fail('Bu filialga bog‘langan xodim yoki ko‘chirish tarixi bor.');
@@ -66,12 +68,6 @@ export function validateChanges(current, next, changes, session) {
     if (collection === 'payrollHistory') {
       if (before) fail('Saqlangan hisobot o‘zgartirilmaydi. Yangi versiyasini saqlang.');
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(row.month) || !Array.isArray(row.employees) || !row.employees.length || row.employees.some(employee => !userById.has(employee.employeeId)) || new Set(row.employees.map(employee => employee.employeeId)).size !== row.employees.length || !Number.isFinite(row.total)) fail('Oylik hisoboti noto‘g‘ri.');
-    }
-    if (collection === 'salaryEntries') {
-      if (!userById.has(row.employeeId)) fail('Hisob yozuviga tegishli xodim topilmadi.');
-      if (!Number.isFinite(Number(row.rawAmount)) || Number(row.rawAmount) < 0 || Number(row.rawAmount) > 1e12) fail('Hisoblanmagan summa xato.');
-      if (!Number.isFinite(Number(row.calculatedAmount)) || Number(row.calculatedAmount) < 0 || Number(row.calculatedAmount) > 1e12) fail('Hisoblangan summa xato.');
-      if (!['boss', 'admin'].includes(session.role) && row.employeeId !== session.id) fail('Faqat o‘zingizning maosh yozuvingizni ko‘rishingiz mumkin.');
     }
   }
 }

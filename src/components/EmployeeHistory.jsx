@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { fmt, todayISO, monthKey } from "../lib/utils.js";
 import { evaluationTotal } from "../lib/evaluation.js";
+import { salaryMoney } from '../lib/salaryEntries.js';
 export default function EmployeeHistory({ state, employeeId }) {
   const [month, setMonth] = useState(monthKey(todayISO()));
   const events = [
+    ...(state.salaryEntries || []).filter(entry => !entry.isDeleted).map(entry => ({ ...entry, kind: 'Maosh yozuvi', text: `${salaryMoney(entry.rawAmount)} so‘m × ${entry.rate}% = ${salaryMoney(entry.calculatedAmount)} so‘m · ${entry.isSettled ? '15 kunlik hisob yakunlangan' : 'Ochiq hisob'} · ${entry.note || ''}`, actor: entry.by })),
     ...(state.dailySales || []).map(r => ({ ...r, kind: "Savdo", text: `${fmt(r.amount)} so‘m × ${r.rate}% = ${fmt(r.amount * r.rate / 100)} so‘m. ${r.note || ""}`, actor: r.by })),
     ...(state.attendance || []).map(r => ({ ...r, kind: "Davomat", text: `${r.status} · ${r.checkIn || "—"} · ${r.checkOut || "—"}` })),
     ...(state.adjustments || []).map(r => ({ ...r, kind: r.type === "bonus" ? "Bonus" : "Jarima", text: `${fmt(r.amount)} so‘m · ${r.comment || ""}`, actor: r.by })),

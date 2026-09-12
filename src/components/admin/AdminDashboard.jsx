@@ -24,7 +24,7 @@ const TABS = [
   { id: "reports", label: "Filial hisoboti" },
 ];
 
-export default function AdminDashboard({ state, persist, session, saveSale }) {
+export default function AdminDashboard({ state, persist, session, saveSale, salaryAction }) {
   const [historyId, setHistoryId] = useState("");
   const [tab, setTab] = useState("attendance");
   const [search, setSearch] = useState("");
@@ -73,7 +73,7 @@ export default function AdminDashboard({ state, persist, session, saveSale }) {
         {!branchEmployees.length && <p className="empty">Bu filialga xodim biriktirilmagan.</p>}
       </section>}
       {tab === "attendance" && <Attendance state={state} persist={persist} session={session} />}
-      {tab === "salary" && <SalaryEntryPanel state={state} persist={persist} session={session} />}
+      {tab === "salary" && <SalaryEntryPanel state={state} salaryAction={salaryAction} session={session} />}
       {tab === "sales" && <SalesPanel state={state} session={session} saveSale={saveSale} />}
       {tab === "evaluations" && <EvaluationPanel state={state} persist={persist} session={session} employeeScope={employeeScope} />}
       {tab === "transfer" && <EmployeeTransfer state={state} persist={persist} session={session} employeeScope={employeeScope} />}

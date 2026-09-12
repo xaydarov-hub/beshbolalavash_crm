@@ -19,6 +19,7 @@ import { gzip } from 'node:zlib';
 import { serverConfig } from './config.js';
 import { normalizeUserRole } from '../src/lib/roles.js';
 import { applyWorkflowEffects } from './workflows.js';
+import { saveSalaryEntry, settle15DayCycle, moveToTrash, restoreDeletedEntry, purgeExpiredTrash, visibleSalaryState } from './salaryEntries.js';
 
 const app = express();
 const { port: PORT, host: HOST, secret: JWT_SECRET } = serverConfig();
@@ -74,7 +75,7 @@ async function initDb() {
     if (!Array.isArray(existing.users) || !existing.users.length || !Array.isArray(existing.branches)) throw new Error('Existing CRM database is invalid. Restore a verified backup; existing data was not replaced.');
     db.data = existing;
   }
-  for (const collection of ['attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'dailySales', 'payrollHistory', 'salaryEntries']) {
+  for (const collection of ['attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'dailySales', 'payrollHistory', 'salaryEntries', 'salarySettlements', 'trash']) {
     db.data[collection] ??= [];
     if (!Array.isArray(db.data[collection])) throw new Error(`Invalid CRM collection: ${collection}. Existing data was not replaced.`);
   }
@@ -88,6 +89,7 @@ async function initDb() {
   }
   if (!Array.isArray(db.data.payrollHistory)) db.data.payrollHistory = [];
   db.data = removeLegacyDemoAccounts(db.data);
+  db.data = purgeExpiredTrash(db.data);
   await db.write();
   store = createStore(db.data, next => dbFile.write(next));
 }
@@ -128,6 +130,8 @@ function buildState() {
     transfers: [],
     payrollHistory: [],
     salaryEntries: [],
+    salarySettlements: [],
+    trash: [],
   };
 }
 
@@ -168,7 +172,7 @@ function publicUser(user) {
 
 export function publicState(state, session) {
   if (session.role === 'boss') {
-    return { ...state, users: state.users.map((user) => publicUser(user)) };
+    return { ...state, ...visibleSalaryState(state, session), users: state.users.map((user) => publicUser(user)) };
   }
 
   const currentUser = state.users.find((user) => user.id === session.id) || session;
@@ -186,11 +190,7 @@ export function publicState(state, session) {
     dailySales: (state.dailySales || []).filter(r => visibleIds.has(r.employeeId)),
     sales: Object.fromEntries(Object.entries(state.sales || {}).filter(([key]) => [...visibleIds].some(id => key.startsWith(`${id}:`)))),
     payrollHistory: (state.payrollHistory || []).map(r => ({ ...r, employees: (r.employees || []).filter(e => visibleIds.has(e.employeeId)) })).filter(r => r.employees.length).map(r => ({ ...r, total: r.employees.reduce((sum, e) => sum + e.total, 0) })),
-    salaryEntries: (state.salaryEntries || []).filter(entry => {
-      if (session.role === 'boss') return true;
-      if (session.role === 'admin') return entry.branchId === currentUser.branchId;
-      return entry.employeeId === session.id;
-    }),
+    ...visibleSalaryState(state, currentUser),
     auditLog: (state.auditLog || []).filter(r => visibleIds.has(r.employeeId) || r.actor === session.name),
     notifications: (state.notifications || []).filter(r => (!r.employeeId || r.employeeId === session.id) && (!r.forRole || r.forRole === session.role) && (!r.branchId || r.branchId === currentUser.branchId)),
     attendance: state.attendance.filter((record) => visibleIds.has(record.employeeId)),
@@ -210,7 +210,7 @@ export async function mergeScopedState(current, next, session) {
   };
   if (session.role === 'boss') Object.assign(merged, next);
   else if (session.role === 'admin') {
-    for (const collection of ['users', 'attendance', 'adjustments', 'leaveRequests', 'evaluations', 'transfers', 'salaryEntries']) merged[collection] = replaceVisible(collection);
+    for (const collection of ['users', 'attendance', 'adjustments', 'leaveRequests', 'evaluations', 'transfers']) merged[collection] = replaceVisible(collection);
     // Reports may contain multiple branches. Never replace a filtered report with its visible subset.
     const reportIds = new Set((current.payrollHistory || []).map(row => row.id));
     merged.payrollHistory = [...(current.payrollHistory || []), ...(next.payrollHistory || []).filter(row => !reportIds.has(row.id)).map(row => ({ ...row, branchId: session.branchId, savedBy: session.name }))];
@@ -221,6 +221,8 @@ export async function mergeScopedState(current, next, session) {
   }
   merged.dailySales = current.dailySales || [];
   merged.sales = current.sales || {};
+  // The commission ledger is written only by its authenticated transactional endpoints.
+  for (const collection of ['salaryEntries', 'salarySettlements', 'trash']) merged[collection] = current[collection] || [];
   if (session.role === 'boss' || session.role === 'admin') {
     merged.users = await Promise.all(merged.users.map(async incoming => {
       const existing = current.users.find(user => user.id === incoming.id);
@@ -239,7 +241,7 @@ export async function mergeScopedState(current, next, session) {
 }
 
 const release = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || 'local';
-app.get('/api/health', (_, res) => res.json({ ok: true, release, apiVersion: 2, uptime: Math.floor(process.uptime()) }));
+app.get('/api/health', (_, res) => res.json({ ok: true, release, apiVersion: 2, salaryEntryApiVersion: 1, uptime: Math.floor(process.uptime()) }));
 
 const loginAttempts = new Map();
 function checkLoginLimit(key, res) {
@@ -330,6 +332,18 @@ app.post('/api/sales', authMiddleware, async (req, res) => {
   return sendState(req, res, { state: publicState(updated, sessionUser(updated, req.user.id)) });
 });
 
+for (const [path, action] of [
+  ['/api/salary-entries', (state, user, req) => saveSalaryEntry(state, user, req.body || {})],
+  ['/api/salary-settlements', (state, user, req) => settle15DayCycle(state, user, req.body || {})],
+  ['/api/salary-entries/:id/trash', (state, user, req) => moveToTrash(state, user, req.params.id, req.body || {})],
+  ['/api/salary-entries/:id/restore', (state, user, req) => restoreDeletedEntry(state, user, req.params.id, req.body || {})],
+]) {
+  app.post(path, authMiddleware, async (req, res) => {
+    const updated = await store.update(current => action(current, sessionUser(current, req.user), req));
+    return sendState(req, res, { ok: true, state: publicState(updated, sessionUser(updated, req.user.id)) });
+  });
+}
+
 app.delete('/api/users/:id', authMiddleware, async (req, res) => {
   const updated = await store.update(current => {
     const user = sessionUser(current, req.user);
@@ -378,6 +392,12 @@ app.use((error, req, res, next) => {
 
 if (process.env.NODE_ENV !== 'test') {
   await initDb();
+  // Runs without an open browser, and startup above catches up after downtime.
+  const trashTimer = setInterval(() => {
+    if (purgeExpiredTrash(store.get()) === store.get()) return;
+    store.update(current => purgeExpiredTrash(current)).catch(error => console.error('Trash cleanup failed:', error.message));
+  }, 60_000);
+  trashTimer.unref();
   const server = app.listen(PORT, HOST, () => {
     const address = server.address();
     const actualPort = address && typeof address === 'object' ? address.port : PORT;

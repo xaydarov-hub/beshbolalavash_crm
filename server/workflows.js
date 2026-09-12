@@ -42,7 +42,7 @@ export function applyWorkflowEffects(current, input, changes, session) {
     if (collection !== 'payrollHistory' || !after) continue;
     const employees = after.employees.map(({ employeeId }) => {
       const report = computeEmployeeReport(next, employeeId, after.month);
-      return { employeeId, name: report.emp.name, branchId: report.emp.branchId, worked: report.worked, hours: report.totalHours, sales: report.sales, saleRecords: report.saleRecords, base: report.base, bonuses: report.bonuses, fines: report.fines, total: report.total };
+      return { employeeId, name: report.emp.name, branchId: report.emp.branchId, worked: report.worked, hours: report.totalHours, sales: report.sales, saleRecords: report.saleRecords, salaryEntryCommission: report.salaryEntryCommission, salaryEntryRawAmount: report.salaryEntryRawAmount, base: report.base, bonuses: report.bonuses, fines: report.fines, total: report.total };
     });
     next.payrollHistory = next.payrollHistory.map(row => row.id === after.id ? {
       id: row.id, month: after.month, branchId: session.role === 'admin' ? session.branchId : (after.branchId || 'all'),

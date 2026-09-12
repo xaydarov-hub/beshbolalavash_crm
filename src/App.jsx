@@ -166,6 +166,26 @@ export default function App() {
     }
   };
 
+  const salaryAction = (path, input) => {
+    const epoch = generation.current;
+    const operation = queue.current.then(async () => {
+      if (epoch !== generation.current) throw new Error('Sessiya yangilandi. Qayta kiring.');
+      if (stateRef.current?.salaryEntryApiVersion !== 1) throw new Error('Maosh bo‘limi uchun backendni yangilash kerak. Amal saqlanmadi.');
+      writes.current += 1; setSaving(true); setError('');
+      try {
+        const data = await request(path, { method: 'POST', body: input });
+        if (epoch !== generation.current) throw new Error('Sessiya yangilandi.');
+        acceptState(data.state);
+        return data.state;
+      } catch (error) {
+        if (epoch === generation.current) setError(error.message);
+        throw error;
+      } finally { writes.current -= 1; setSaving(false); }
+    });
+    queue.current = operation.catch(() => {});
+    return operation;
+  };
+
   const changePassword = input => {
     const epoch = generation.current;
     const operation = queue.current.then(async () => {
@@ -244,8 +264,8 @@ export default function App() {
       <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout} onPassword={() => setPasswordOpen(value => !value)}>
         {passwordOpen && <PasswordSettings key={liveSession.id} session={liveSession} onChangePassword={changePassword} onClose={() => setPasswordOpen(false)} />}
         {liveSession.firstLogin && !passwordOpen && <p className="hint">Boshlang‘ich paroldan foydalanyapsiz. <button className="btn btn-sm" onClick={() => setPasswordOpen(true)}>Shaxsiy parol o‘rnating</button></p>}
-        {liveSession.role === "boss" && <BossDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} deleteUser={deleteUser} session={liveSession} firebaseMode={false} />}
-        {liveSession.role === "admin" && <AdminDashboard key={accountPath + liveSession.id + liveSession.branchId} state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
+        {liveSession.role === "boss" && <BossDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} salaryAction={salaryAction} deleteUser={deleteUser} session={liveSession} firebaseMode={false} />}
+        {liveSession.role === "admin" && <AdminDashboard key={accountPath + liveSession.id + liveSession.branchId} state={state} persist={persist} saveSale={saveSale} salaryAction={salaryAction} session={liveSession} />}
         {liveSession.role === "employee" && <EmployeeDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
       </Shell>
     </>

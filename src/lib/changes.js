@@ -1,7 +1,8 @@
-export const EDITABLE_COLLECTIONS = ['users', 'branches', 'attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'payrollHistory', 'salaryEntries'];
+export const EDITABLE_COLLECTIONS = ['users', 'branches', 'attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'payrollHistory'];
+export const SERVER_MANAGED_COLLECTIONS = ['salaryEntries', 'salarySettlements', 'trash'];
 
 export function stateChanges(before, after) {
-  return EDITABLE_COLLECTIONS.flatMap(collection => {
+  return [...EDITABLE_COLLECTIONS, ...SERVER_MANAGED_COLLECTIONS].flatMap(collection => {
     if (before[collection] === after[collection]) return [];
     const previous = new Map((before[collection] || []).map(row => [row.id, row]));
     const next = new Map((after[collection] || []).map(row => [row.id, row]));

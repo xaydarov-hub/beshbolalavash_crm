@@ -8,6 +8,7 @@ import { computeEmployeeReport, SALARY_TYPES } from "../../lib/salary.js";
 import { uid } from "../../lib/utils.js";
 import { getJobRole, jobLabel } from "../../lib/roles.js";
 import JobWorkspace from "./JobWorkspace.jsx";
+import SalaryEntryPanel from '../admin/SalaryEntryPanel.jsx';
 
 export default function EmployeeDashboard({ state, persist, session, saveSale }) {
   const [tab, setTab] = useState("dashboard");
@@ -24,6 +25,7 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
       <h2 className="section-title">{jobLabel(session)} sahifasi</h2>
       <p className="hint">{session.name} · {branch?.name || "Filial biriktirilmagan"}</p>
       <nav className="tabs" aria-label={`${jobLabel(session)} bo‘limlari`}>
+        <button className={`tab-btn ${tab === 'salary' ? 'active' : ''}`} onClick={() => setTab('salary')}>Maosh yozuvlarim</button>
         {hasSales && <button className={`tab-btn ${tab === "sales" ? "active" : ""}`} onClick={() => setTab("sales")}>Kunlik savdo</button>}
         <button className={`tab-btn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>Xodim tarixi</button>
         <button className={`tab-btn ${tab === "dashboard" ? "active" : ""}`} onClick={() => setTab("dashboard")}>🏠 Bosh sahifa</button>
@@ -33,6 +35,7 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
         <button className={`tab-btn ${tab === "profile" ? "active" : ""}`} onClick={() => setTab("profile")}>👤 Profil</button>
       </nav>
       {tab === "sales" && hasSales && <SalesPanel state={state} session={session} saveSale={saveSale} />}
+      {tab === 'salary' && <SalaryEntryPanel state={state} session={session} />}
 
       {tab === "history" && <EmployeeHistory state={state} employeeId={session.id} />}
       {["dashboard", "attendance", "points"].includes(tab) && <label className="field">Hisobot oyi<input type="month" className="input" value={month} onChange={e => setMonth(e.target.value)} /></label>}
