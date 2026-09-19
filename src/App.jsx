@@ -1,7 +1,6 @@
 import { request, requireCurrentApi } from "./lib/api.js";
 import { stateChanges } from "./lib/changes.js";
 import React, { useEffect, useState, useRef } from "react";
-import { sendTelegramMessage } from "./lib/telegram.js";
 import Login from "./components/Login.jsx";
 import Shell from "./components/Shell.jsx";
 import BossDashboard from "./components/boss/BossDashboard.jsx";
@@ -160,7 +159,6 @@ export default function App() {
       stateRef.current = data.state || null;
       setState(stateRef.current);
       setPasswordOpen(false);
-      sendTelegramMessage(`✅ CRM tizimga kirdi: ${data.user.name} (${data.user.phone})`);
     } catch (err) {
       setError(err.message || "Login xatosi");
     }
@@ -222,8 +220,9 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    // Best-effort: the notification only matters if the request goes out before the token is cleared.
+    try { await request('/api/logout', { method: 'POST', timeout: 5000 }); } catch { /* logout proceeds regardless */ }
     clearSession();
-    sendTelegramMessage(`🚪 CRM tizimdan chiqildi: ${session?.name || "foydalanuvchi"}`);
   };
 
   const liveSession = session && state?.users.find(user => user.id === session.id);

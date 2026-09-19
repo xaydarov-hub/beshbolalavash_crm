@@ -20,6 +20,7 @@ import { serverConfig } from './config.js';
 import { normalizeUserRole } from '../src/lib/roles.js';
 import { applyWorkflowEffects } from './workflows.js';
 import { saveSalaryEntry, settle15DayCycle, moveToTrash, restoreDeletedEntry, purgeExpiredTrash, visibleSalaryState } from './salaryEntries.js';
+import { sendTelegramMessage } from './telegram.js';
 
 const app = express();
 const { port: PORT, host: HOST, secret: JWT_SECRET } = serverConfig();
@@ -298,7 +299,13 @@ app.post('/api/login', async (req, res) => {
   if (!['boss', 'admin', 'employee'].includes(liveUser.role)) return res.status(401).json({ message: 'Hisob roli noto‘g‘ri. Boshliq bilan bog‘laning.' });
   loginAttempts.delete(attemptKey);
   const token = issueToken(liveUser);
+  sendTelegramMessage(`✅ CRM tizimga kirdi: ${liveUser.name} (${liveUser.phone})`);
   return sendState(req, res, { token, user: publicUser(liveUser), state: publicState(current, liveUser) });
+});
+
+app.post('/api/logout', authMiddleware, (req, res) => {
+  sendTelegramMessage(`🚪 CRM tizimdan chiqildi: ${req.user.name}`);
+  res.json({ ok: true });
 });
 
 app.get('/api/state', authMiddleware, async (req, res) => {

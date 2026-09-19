@@ -9,17 +9,19 @@ Bu loyiha React + Vite asosida yaratilgan ko'p-filliya, kafe va xizmat ko'rsatis
 - Xodimlar uchun shaxsiy maosh, davomat va ta'til ko'rinishi
 - Davomatni kiritish / ko'rish / status belgilash
 - Bonus va jarima tizimi
+- Avans (maosh oldindan olish) so'rovi, tasdiqlash va oylikdan avtomatik ayirish
 - Ta'til so'rovlarini ko'rish va tasdiqlash
+- Ishlaydigan bildirishnoma qo'ng'irog'i: yangi ta'til/avans so'rovi adminni va boshliqni ogohlantiradi, qaror xodimga qaytadi
 - Xodimlarni boshqa filialga ko'chirish
 - Ball baholash va sifat indeksi
 - CSV / PNG hisobotlarni yuklab olish
-- Firebase bilan cloud sinxronizatsiya uchun tayyor konfiguratsiya
+- Telefonga "ilova sifatida" o'rnatish mumkin (PWA): iOS/Android'da to'liq ekranli, brauzer panellarisiz ishlaydi
 
 ## Texnologiyalar
 
 - React 18
 - Vite 8
-- Firebase Auth / Firestore (ixtiyoriy)
+- Node.js + Express backend (`server/`), JSON fayl bazasi (lowdb)
 - CSS-modul yo'qligida maxsus komponent stili
 - Vitest + Testing Library (sinovlar uchun)
 
@@ -37,7 +39,7 @@ npm install
 cp .env.example .env
 ```
 
-3. `.env` ichidagi Firebase qiymatlarini haqiqiy Firebase loyihangizga moslashtiring.
+3. Lokal ishlatish uchun boshqa hech narsa sozlash shart emas — `npm run dev` backend va frontendni birga ishga tushiradi. `.env`dagi `VITE_FIREBASE_*` qiymatlari ishlatilmaydi (pastdagi "Firebase haqida eslatma"ga qarang).
 
 Netlify'da login ishlashi uchun backend serveringizning ommaviy HTTPS manzilini
 Netlify Site configuration -> Environment variables bo'limida kiriting:
@@ -81,36 +83,34 @@ Netlify Environment variables ichida `VITE_API_URL` ga Render service URL'ini ki
 npm test
 ```
 
-## Demo login ma'lumotlari
+## Birinchi kirish (yangi baza)
 
-| Rol | Telefon | Parol |
-|---|---|---|
-| 👑 Boshliq | 901234567 | 2018 |
-| 👨‍💼 Admin — Chilonzor | 911112233 | 2021 |
-| 👨‍💼 Admin — Yunusobod | 912223344 | 2022 |
-| 👷 Xodim — Aziz Karimov | 933334455 | 2022 |
-| 👷 Xodim — Nodira Tosheva | 934445566 | 2021 |
-| 👷 Xodim — Javlon Mirzaev | 936667788 | 2020 |
-| 👷 Xodim — Kamola Saidova | 937778899 | 2023 |
+Bazada hali hech qanday hisob bo'lmasa (`server/db.json` mavjud emas), server ishga tushganda boshliq hisobi uchun xavfsiz tasodifiy parol avtomatik yaratiladi va **faqat bir marta**, server terminalida/logida ko'rsatiladi:
 
-Xodim va adminlar birinchi kirishda yangi parol o'rnatishni talab qiladi. Agar Firebase ishlatilsa, u yerda auth va Firestore profilini ishlatadi.
-
-## Firebase konfiguratsiyasi
-
-Proyekt Firebase bilan ishlashini xohlasangiz, `.env` faylida quyidagi variabellarni to'ldiring:
-
-```env
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_DATABASE_URL=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-VITE_FIREBASE_MEASUREMENT_ID=...
+```
+Yangi CRM bazasi yaratildi. Boshliq hisobiga birinchi kirish:
+  Login: beshbola.hr
+  Boshlang'ich parol: <tasodifiy parol>
 ```
 
-Agar konfiguratsiya to'liq bo'lmasa, loyiha avtomatik ravishda demo rejimiga o'tadi.
+Shu login/parol bilan kirib, darhol shaxsiy parol o'rnating (birinchi kirishda tizim buni taklif qiladi). Boshliq keyin "Xodimlar" bo'limidan admin va xodimlarni o'zi qo'shadi — ularning boshlang'ich parolini shu yerda o'zi belgilaydi.
+
+Demo/test uchun aniq login-parol jadvali endi yo'q: eski qattiq-kodlangan demo hisoblar (va ular ishlatgan filial nomlari) tizimdan butunlay olib tashlandi, chunki haqiqiy foydalanishda ular real ma'lumotlar bilan aralashib, eski demo yozuvlar doim qaytib kelaverar edi.
+
+## Telegram bildirishnomalari (ixtiyoriy)
+
+Har bir kirish va chiqishda Telegram guruhiga xabar yuborilishi mumkin. Bu server tomonida ishlaydi (token brauzer kodiga hech qachon tushmaydi). Yoqish uchun serverning muhit o'zgaruvchilariga (Render bo'lsa — Environment bo'limiga, lokal bo'lsa `.env` fayliga) qo'shing:
+
+```env
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+```
+
+Ikkalasi ham bo'sh qolsa, bildirishnoma jim o'chirilgan holatda qoladi (xatolik chiqmaydi).
+
+## Firebase haqida eslatma
+
+Loyiha hozir **faqat** `server/` ichidagi Express + JSON backend orqali ishlaydi (login, ma'lumot saqlash — hammasi shu orqali). `src/lib/firebase*.js` va `FirebaseLogin.jsx`/`FirebaseSetPassword.jsx` fayllari, shuningdek `firebase.json`/`firestore.rules`/`functions/` — bular ilgari boshqa arxitektura bilan boshlangan, hozir hech qayerdan chaqirilmaydigan (ishlatilmaydigan) eski qoldiqlar. `.env`dagi `VITE_FIREBASE_*` o'zgaruvchilarini to'ldirish hech narsani o'zgartirmaydi.
 
 ## Strukturasi
 
@@ -125,14 +125,14 @@ src/
 
 ## Keyingi bosqichlar
 
-Bu loyiha real biznes uchun ishlab chiqiladigan asos bo'lib xizmat qiladi. Keyingi qadamlar:
+Bajarilgan: backend API va server tomonidagi huquqlar, mobilga moslashgan interfeys, ilova sifatida o'rnatish (PWA).
 
-- backend API va real database (PostgreSQL / Firebase Production)
-- ro'yxatga kirish va huquqlarni server tomonida boshqarish
-- Telegram/WhatsApp bildirishnomalar
-- Excel export + PDF hisobotlar
-- QR/GPS nedvizhiy davomat
-- mobil ilova uchun responsiv UX
+Hali qilinishi mumkin bo'lgan qadamlar:
+
+- Render'da pullik tarifga o'tish (bepul tarifda server 15 daqiqadan keyin "uxlab qoladi", birinchi so'rov sekin bo'ladi)
+- Excel export + PDF hisobotlar (hozir CSV va PNG bor)
+- Xodimlar uchun smena jadvalini oldindan rejalashtirish
+- QR/GPS orqali davomat belgilash
 
 ## Muallif
 

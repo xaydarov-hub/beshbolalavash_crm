@@ -2,8 +2,6 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import App from './App.jsx';
 
-vi.mock('./lib/telegram.js', () => ({ sendTelegramMessage: vi.fn() }));
-
 const employee = { id: 'waiter', name: 'Test Ofitsiant', phone: 'waiter.login', role: 'employee', jobRole: 'waiter', position: 'Ofitsiant', branchId: 'branch', active: true, salaryType: 'foiz', rate: 7, hireDate: '2026-01-01', workStart: '08:00', workEnd: '17:00' };
 const snapshot = user => ({ databaseId: 'test-db', revision: 1, users: [user], branches: [{ id: 'branch', name: 'Test filial' }], attendance: [], dailySales: [], sales: {}, adjustments: [], evaluations: [], transfers: [], notifications: [], leaveRequests: [], auditLog: [], payrollHistory: [] });
 const response = (user, state = snapshot(user), token = 'current-token') => new Response(JSON.stringify({ token, user, state }), { status: 200, headers: { 'Content-Type': 'application/json' } });
