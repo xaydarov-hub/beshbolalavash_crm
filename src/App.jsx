@@ -259,9 +259,8 @@ export default function App() {
       {error && <div className="firebase-error" role="alert">{error} {localStorage.getItem("bbl-crm-token") && <button className="btn" onClick={fetchState}>Qayta yuklash</button>}</div>}
       {saving && <div className="save-banner" role="status">Serverga saqlanmoqda...</div>}
       {offline && <div className="firebase-error" role="status">Internet aloqasi uzilgan. Aloqa tiklanganda ma’lumotlar avtomatik yangilanadi. Saqlanmagan amallarni qayta yuboring.</div>}
-      <button className="btn" disabled={offline || saving || syncing} onClick={fetchState}>Ma’lumotlarni yangilash</button>
       {syncError && <div className="hint" role="status">{syncError} Avtomatik qayta tekshiriladi.</div>}
-      <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout} onPassword={() => setPasswordOpen(value => !value)}>
+      <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout} onPassword={() => setPasswordOpen(value => !value)} onRefresh={fetchState} refreshDisabled={offline || saving || syncing}>
         {passwordOpen && <PasswordSettings key={liveSession.id} session={liveSession} onChangePassword={changePassword} onClose={() => setPasswordOpen(false)} />}
         {liveSession.firstLogin && !passwordOpen && <p className="hint">Boshlang‘ich paroldan foydalanyapsiz. <button className="btn btn-sm" onClick={() => setPasswordOpen(true)}>Shaxsiy parol o‘rnating</button></p>}
         {liveSession.role === "boss" && <BossDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} salaryAction={salaryAction} deleteUser={deleteUser} session={liveSession} firebaseMode={false} />}

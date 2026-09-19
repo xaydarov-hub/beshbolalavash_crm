@@ -163,8 +163,10 @@ a { color: inherit; }
   .table-wrap .trow[style*="1.15fr 0.85fr 0.45fr 0.5fr"] { min-width: 980px; }
   input[style*="width"], select[style*="width"] { width: 100% !important; max-width: 100%; }
   .topbar .brand { max-width: 100%; }
-  .topbar .who { flex: 1 1 100%; }
+  .topbar .who { flex: 1 1 100%; flex-wrap: wrap; }
   .topbar .who > button { flex-shrink: 0; }
+  .topbar .who-session { flex: 1 1 100%; order: 1; }
+  .topbar .who > button.btn-sm { order: 2; }
   .login-wrap { padding: 36px 16px; }
   .login-brand { text-align: center; line-height: 1.35; }
   .branch-create { flex-wrap: wrap; }
