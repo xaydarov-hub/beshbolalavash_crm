@@ -39,7 +39,7 @@ npm install
 cp .env.example .env
 ```
 
-3. Lokal ishlatish uchun boshqa hech narsa sozlash shart emas — `npm run dev` backend va frontendni birga ishga tushiradi. `.env`dagi `VITE_FIREBASE_*` qiymatlari ishlatilmaydi (pastdagi "Firebase haqida eslatma"ga qarang).
+3. Lokal ishlatish uchun boshqa hech narsa sozlash shart emas — `npm run dev` backend va frontendni birga ishga tushiradi.
 
 Netlify'da login ishlashi uchun backend serveringizning ommaviy HTTPS manzilini
 Netlify Site configuration -> Environment variables bo'limida kiriting:
@@ -107,10 +107,6 @@ TELEGRAM_CHAT_ID=...
 ```
 
 Ikkalasi ham bo'sh qolsa, bildirishnoma jim o'chirilgan holatda qoladi (xatolik chiqmaydi).
-
-## Firebase haqida eslatma
-
-Loyiha hozir **faqat** `server/` ichidagi Express + JSON backend orqali ishlaydi (login, ma'lumot saqlash — hammasi shu orqali). `src/lib/firebase*.js` va `FirebaseLogin.jsx`/`FirebaseSetPassword.jsx` fayllari, shuningdek `firebase.json`/`firestore.rules`/`functions/` — bular ilgari boshqa arxitektura bilan boshlangan, hozir hech qayerdan chaqirilmaydigan (ishlatilmaydigan) eski qoldiqlar. `.env`dagi `VITE_FIREBASE_*` o'zgaruvchilarini to'ldirish hech narsani o'zgartirmaydi.
 
 ## Strukturasi
 

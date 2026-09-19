@@ -4,5 +4,4 @@ dist
 .env.local
 .env.render.local
 .jwt-secret*
-.firebase
 server/db.json

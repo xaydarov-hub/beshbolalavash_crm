@@ -32,7 +32,7 @@ const TABS = [
   { id: "audit", label: "Audit log", icon: "🛡" },
 ];
 
-export default function BossDashboard({ state, persist, session, saveSale, salaryAction, deleteUser, firebaseMode }) {
+export default function BossDashboard({ state, persist, session, saveSale, salaryAction, deleteUser }) {
   const [tab, setTab] = useState("overview");
   const pendingLeaves = state.leaveRequests.filter((r) => r.status === "kutilmoqda").length;
   const pendingAdvances = (state.advances || []).filter((r) => r.status === "kutilmoqda").length;
@@ -56,7 +56,7 @@ export default function BossDashboard({ state, persist, session, saveSale, salar
       {tab === 'salary' && <SalaryEntryPanel state={state} session={session} salaryAction={salaryAction} />}
       {tab === "overview" && <Overview state={state} />}
       {tab === "attendance" && <Attendance state={state} persist={persist} session={session} />}
-      {tab === "employees" && <Employees state={state} persist={persist} session={session} deleteUser={deleteUser} firebaseMode={firebaseMode} />}
+      {tab === "employees" && <Employees state={state} persist={persist} session={session} deleteUser={deleteUser} />}
       {tab === "branches" && <Branches state={state} persist={persist} session={session} />}
       {tab === "adjustments" && <Adjustments state={state} persist={persist} session={session} />}
       {tab === "evaluations" && <EvaluationPanel state={state} persist={persist} session={session} />}

@@ -262,7 +262,7 @@ export default function App() {
       <Shell session={liveSession} notifications={myNotifications} persist={persist} onLogout={handleLogout} onPassword={() => setPasswordOpen(value => !value)} onRefresh={fetchState} refreshDisabled={offline || saving || syncing}>
         {passwordOpen && <PasswordSettings key={liveSession.id} session={liveSession} onChangePassword={changePassword} onClose={() => setPasswordOpen(false)} />}
         {liveSession.firstLogin && !passwordOpen && <p className="hint">Boshlang‘ich paroldan foydalanyapsiz. <button className="btn btn-sm" onClick={() => setPasswordOpen(true)}>Shaxsiy parol o‘rnating</button></p>}
-        {liveSession.role === "boss" && <BossDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} salaryAction={salaryAction} deleteUser={deleteUser} session={liveSession} firebaseMode={false} />}
+        {liveSession.role === "boss" && <BossDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} salaryAction={salaryAction} deleteUser={deleteUser} session={liveSession} />}
         {liveSession.role === "admin" && <AdminDashboard key={accountPath + liveSession.id + liveSession.branchId} state={state} persist={persist} saveSale={saveSale} salaryAction={salaryAction} session={liveSession} />}
         {liveSession.role === "employee" && <EmployeeDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} session={liveSession} />}
       </Shell>
