@@ -1,5 +1,18 @@
-import { addDays, isLate, uid } from '../src/lib/utils.js';
+import { addDays, isLate, uid, fmt } from '../src/lib/utils.js';
 import { computeEmployeeReport } from '../src/lib/salary.js';
+
+// A new request pings the branch's admin and the boss; neither has to be watching the tab.
+function notifyReviewers(notifications, employee, text) {
+  const at = new Date().toISOString();
+  return [...(notifications || []),
+    { id: uid(), forRole: 'admin', branchId: employee.branchId, text, at, read: false },
+    { id: uid(), forRole: 'boss', text, at, read: false },
+  ];
+}
+// A decision pings back the employee who asked, whether it was approved or not.
+function notifyRequester(notifications, employeeId, text) {
+  return [...(notifications || []), { id: uid(), employeeId, text, at: new Date().toISOString(), read: false }];
+}
 
 // Business side effects share the same durable transaction as the requested edit.
 export function applyWorkflowEffects(current, input, changes, session) {
@@ -26,6 +39,9 @@ export function applyWorkflowEffects(current, input, changes, session) {
         }
         next.attendance = [...byDate.values()];
       }
+      const kind = after.type === 'kasal' ? 'kasallik' : "ta'til";
+      if (!before) next.notifications = notifyReviewers(next.notifications, employee, `${employee.name} ${kind} so'rovi yubordi: ${after.from} — ${after.to}.`);
+      else if (before.status === 'kutilmoqda' && after.status !== 'kutilmoqda') next.notifications = notifyRequester(next.notifications, after.employeeId, `Sizning ${after.from} — ${after.to} ${kind} so'rovingiz ${after.status === 'tasdiqlandi' ? 'tasdiqlandi' : 'rad etildi'}.`);
     }
     if (collection === 'advances') {
       const employee = next.users.find(user => user.id === after.employeeId);
@@ -33,6 +49,8 @@ export function applyWorkflowEffects(current, input, changes, session) {
         ...row, branchId: employee.branchId,
         ...(!before ? { requestedAt: new Date().toISOString() } : { decidedBy: session.name, decidedAt: new Date().toISOString() }),
       } : row);
+      if (!before) next.notifications = notifyReviewers(next.notifications, employee, `${employee.name} avans so'radi: ${fmt(after.amount)} so'm.`);
+      else if (before.status === 'kutilmoqda' && after.status !== 'kutilmoqda') next.notifications = notifyRequester(next.notifications, after.employeeId, `Sizning ${fmt(after.amount)} so'mlik avans so'rovingiz ${after.status === 'tasdiqlandi' ? 'tasdiqlandi' : 'rad etildi'}.`);
     }
     if (collection === 'attendance') {
       const employee = next.users.find(user => user.id === after.employeeId);

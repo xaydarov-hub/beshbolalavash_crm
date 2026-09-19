@@ -251,7 +251,7 @@ export default function App() {
 
   if (!state) return <div className="login-wrap"><div className="hint">Ma'lumotlar yuklanmoqda...</div></div>;
   if (!accountPath) return <div className="login-wrap"><p role="alert">Hisob topilmadi yoki kirish roli noto‘g‘ri. Qayta kiring.</p><button className="btn" onClick={clearSession}>Kirish sahifasi</button></div>;
-  const notifCount = (state.notifications || []).filter(notification => (notification.employeeId ? notification.employeeId === liveSession.id : notification.forRole === liveSession.role) && !notification.read).length;
+  const myNotifications = (state.notifications || []).filter(notification => notification.employeeId ? notification.employeeId === liveSession.id : notification.forRole === liveSession.role);
 
   return (
     <>
@@ -260,7 +260,7 @@ export default function App() {
       {saving && <div className="save-banner" role="status">Serverga saqlanmoqda...</div>}
       {offline && <div className="firebase-error" role="status">Internet aloqasi uzilgan. Aloqa tiklanganda ma’lumotlar avtomatik yangilanadi. Saqlanmagan amallarni qayta yuboring.</div>}
       {syncError && <div className="hint" role="status">{syncError} Avtomatik qayta tekshiriladi.</div>}
-      <Shell session={liveSession} notifCount={notifCount} onLogout={handleLogout} onPassword={() => setPasswordOpen(value => !value)} onRefresh={fetchState} refreshDisabled={offline || saving || syncing}>
+      <Shell session={liveSession} notifications={myNotifications} persist={persist} onLogout={handleLogout} onPassword={() => setPasswordOpen(value => !value)} onRefresh={fetchState} refreshDisabled={offline || saving || syncing}>
         {passwordOpen && <PasswordSettings key={liveSession.id} session={liveSession} onChangePassword={changePassword} onClose={() => setPasswordOpen(false)} />}
         {liveSession.firstLogin && !passwordOpen && <p className="hint">Boshlang‘ich paroldan foydalanyapsiz. <button className="btn btn-sm" onClick={() => setPasswordOpen(true)}>Shaxsiy parol o‘rnating</button></p>}
         {liveSession.role === "boss" && <BossDashboard key={accountPath + liveSession.id} state={state} persist={persist} saveSale={saveSale} salaryAction={salaryAction} deleteUser={deleteUser} session={liveSession} firebaseMode={false} />}

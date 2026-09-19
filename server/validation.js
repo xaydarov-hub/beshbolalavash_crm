@@ -59,6 +59,7 @@ export function validateChanges(current, next, changes, session) {
       if (before && ['employeeId', 'from', 'to', 'type', 'reason'].some(key => before[key] !== row[key])) fail('Yuborilgan so‘rov matni va sanalarini o‘zgartirish mumkin emas.');
       if (!before && row.status !== 'kutilmoqda') fail('Yangi so‘rov kutilmoqda holatida yuboriladi.');
     }
+    if (collection === 'notifications' && typeof row.read !== 'boolean') fail('Bildirishnoma holati noto‘g‘ri.');
     if (collection === 'advances') {
       if (!money(row.amount) || row.amount <= 0 || !text(row.reason, 2000) || !['kutilmoqda', 'tasdiqlandi', 'radetildi'].includes(row.status)) fail('Avans summasi musbat va sababi kiritilgan bo‘lishi kerak.');
       if (before && before.status !== 'kutilmoqda' && row.status !== before.status) fail('Bu so‘rov bo‘yicha qaror allaqachon saqlangan.');

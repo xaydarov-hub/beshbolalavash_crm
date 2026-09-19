@@ -4,7 +4,7 @@ import { EDITABLE_COLLECTIONS } from '../src/lib/changes.js';
 export function applyChanges(visible, changes, session) {
   const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
   if (!Array.isArray(changes) || changes.length > 1000) fail('O‘zgarishlar noto‘g‘ri.');
-  const allowed = session.role === 'boss' ? EDITABLE_COLLECTIONS : session.role === 'admin' ? ['attendance', 'adjustments', 'leaveRequests', 'advances', 'evaluations', 'transfers', 'users', 'auditLog', 'payrollHistory'] : ['leaveRequests', 'advances'];
+  const allowed = session.role === 'boss' ? EDITABLE_COLLECTIONS : session.role === 'admin' ? ['attendance', 'adjustments', 'leaveRequests', 'advances', 'evaluations', 'transfers', 'users', 'auditLog', 'payrollHistory', 'notifications'] : ['leaveRequests', 'advances', 'notifications'];
   const next = { ...visible };
   for (const change of changes) {
     if (!change || typeof change !== 'object') fail('O‘zgarish formati noto‘g‘ri.');
@@ -14,7 +14,10 @@ export function applyChanges(visible, changes, session) {
     const rows = next[collection] || [];
     const existing = rows.find(row => row.id === id) || null;
     if (!isDeepStrictEqual(existing, before)) fail('Aynan shu yozuv boshqa qurilmada o‘zgardi. Yangilab qayta urinib ko‘ring.', 409);
-    if (session.role === 'admin') {
+    // A notification is visible only once scoped by publicState, so any role may flip its own read flag; nothing else about it may change.
+    if (collection === 'notifications') {
+      if (!existing || !after || Object.keys(after).some(key => key !== 'read' && after[key] !== existing[key])) fail('Bildirishnomani faqat o‘qilgan deb belgilash mumkin.', 403);
+    } else if (session.role === 'admin') {
       if (collection === 'users') {
         const employee = after?.role === 'employee' && (!existing || existing.role === 'employee');
         const inBranch = session.branchId && (!existing || existing.branchId === session.branchId);
@@ -27,7 +30,7 @@ export function applyChanges(visible, changes, session) {
         if (existing || !after || !Array.isArray(after.employees) || !after.employees.length || !after.employees.every(row => visible.users.some(user => user.id === row.employeeId && user.role === 'employee' && user.branchId === session.branchId))) fail('Faqat o‘z filialingiz xodimlari hisobotini saqlashingiz mumkin.', 403);
       } else if (![before, after].filter(Boolean).every(row => visible.users.some(user => user.id === row.employeeId && user.branchId === session.branchId && user.role === 'employee'))) fail('Boshqa filial yoki admin yozuvini o‘zgartirish mumkin emas.', 403);
     }
-    if (session.role === 'employee' && (existing || !after || after.employeeId !== session.id || after.status !== 'kutilmoqda')) fail('Faqat o‘zingiz uchun yangi so‘rov yuborishingiz mumkin.', 403);
+    if (collection !== 'notifications' && session.role === 'employee' && (existing || !after || after.employeeId !== session.id || after.status !== 'kutilmoqda')) fail('Faqat o‘zingiz uchun yangi so‘rov yuborishingiz mumkin.', 403);
     if (after && ['attendance', 'evaluations'].includes(collection) && rows.some(row => row.id !== id && row.employeeId === after.employeeId && row.date === after.date)) fail('Bu sana uchun yozuv allaqachon mavjud. Yangilab qayta urinib ko‘ring.', 409);
     next[collection] = after ? [...rows.filter(row => row.id !== id), after] : rows.filter(row => row.id !== id);
   }

@@ -92,13 +92,23 @@ describe('atomic branch operations', () => {
     expect(publicState(requested, admin).advances.some(row => row.id === 'adv')).toBe(true);
     expect(publicState(requested, boss).advances.some(row => row.id === 'adv')).toBe(true);
     expect(publicState(requested, other).advances.some(row => row.id === 'adv')).toBe(false);
+    expect(publicState(requested, admin).notifications.some(n => n.text.includes("avans so'radi"))).toBe(true);
+    expect(publicState(requested, boss).notifications.some(n => n.text.includes("avans so'radi"))).toBe(true);
+    expect(publicState(requested, waiter).notifications.some(n => n.text.includes("avans so'radi"))).toBe(false);
 
     await expect(transaction(requested, waiter, visible => ({ ...visible, advances: visible.advances.map(row => ({ ...row, status: 'tasdiqlandi' })) }))).rejects.toThrow(/Faqat o‘zingiz uchun/);
 
     const decided = await transaction(requested, admin, visible => ({ ...visible, advances: visible.advances.map(row => ({ ...row, status: 'tasdiqlandi' })) }));
     expect(decided.advances[0]).toMatchObject({ status: 'tasdiqlandi', decidedBy: admin.name });
     expect(decided.advances[0].decidedAt).toBeTruthy();
+    const waiterNotifs = publicState(decided, waiter).notifications;
+    expect(waiterNotifs.some(n => n.text.includes('tasdiqlandi') && n.read === false)).toBe(true);
     await expect(transaction(decided, admin, visible => ({ ...visible, advances: visible.advances.map(row => ({ ...row, status: 'radetildi' })) }))).rejects.toThrow(/allaqachon/);
+
+    const readNotif = waiterNotifs.find(n => n.text.includes('tasdiqlandi'));
+    const readState = await transaction(decided, waiter, visible => ({ ...visible, notifications: visible.notifications.map(n => n.id === readNotif.id ? { ...n, read: true } : n) }));
+    expect(publicState(readState, waiter).notifications.find(n => n.id === readNotif.id).read).toBe(true);
+    await expect(transaction(readState, waiter, visible => ({ ...visible, notifications: visible.notifications.map(n => n.id === readNotif.id ? { ...n, text: 'tampered' } : n) }))).rejects.toThrow(/faqat o‘qilgan/);
   });
   it('rejects a non-positive advance amount, a missing reason, and edits to an already-requested amount', async () => {
     const state = fixture();

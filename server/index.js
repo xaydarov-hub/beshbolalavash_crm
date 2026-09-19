@@ -229,7 +229,7 @@ export async function mergeScopedState(current, next, session) {
   };
   if (session.role === 'boss') Object.assign(merged, next);
   else if (session.role === 'admin') {
-    for (const collection of ['users', 'attendance', 'adjustments', 'leaveRequests', 'advances', 'evaluations', 'transfers']) merged[collection] = replaceVisible(collection);
+    for (const collection of ['users', 'attendance', 'adjustments', 'leaveRequests', 'advances', 'evaluations', 'transfers', 'notifications']) merged[collection] = replaceVisible(collection);
     // Reports may contain multiple branches. Never replace a filtered report with its visible subset.
     const reportIds = new Set((current.payrollHistory || []).map(row => row.id));
     merged.payrollHistory = [...(current.payrollHistory || []), ...(next.payrollHistory || []).filter(row => !reportIds.has(row.id)).map(row => ({ ...row, branchId: session.branchId, savedBy: session.name }))];
@@ -238,6 +238,7 @@ export async function mergeScopedState(current, next, session) {
   } else if (session.role === 'employee') {
     merged.leaveRequests = replaceVisible('leaveRequests');
     merged.advances = replaceVisible('advances');
+    merged.notifications = replaceVisible('notifications');
   }
   merged.dailySales = current.dailySales || [];
   merged.sales = current.sales || {};
