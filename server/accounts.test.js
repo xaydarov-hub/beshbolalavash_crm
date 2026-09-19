@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { deleteAccount, eraseAccount, removeLegacyDemoAccounts } from './accounts.js';
+import { deleteAccount, eraseAccount, removeLegacyDemoAccounts, removeLegacyDemoBranches } from './accounts.js';
 import { validateChanges } from './validation.js';
 
 const boss = { id: 'boss', role: 'boss', name: 'Boss' };
@@ -29,6 +29,15 @@ it('removes only untouched legacy seed identities, including their orphaned reco
   expect(cleaned.users.map(u => u.id)).toEqual(['boss', 'employee-1', 'custom-admin']);
   expect(cleaned.attendance).toEqual([{ employeeId: 'employee-1' }]);
   expect(removeLegacyDemoAccounts(cleaned)).toBe(cleaned);
+});
+it('removes only untouched legacy seed branches, keeping staffed or renamed ones', () => {
+  const seedBranches = [{ id: 'branch-1', name: 'Chilonzor filiali' }, { id: 'branch-2', name: 'Yunusobod filiali' }, { id: 'branch-3', name: 'Sergeli filiali' }];
+  const input = { ...state, branches: seedBranches, users: [boss, { id: 'staffed', role: 'employee', branchId: 'branch-1' }] };
+  const cleaned = removeLegacyDemoBranches(input);
+  expect(cleaned.branches.map(b => b.id)).toEqual(['branch-1']);
+  expect(removeLegacyDemoBranches(cleaned)).toBe(cleaned);
+  const renamed = { ...input, branches: [{ id: 'branch-2', name: 'Real filial' }] };
+  expect(removeLegacyDemoBranches(renamed)).toBe(renamed);
 });
 it('archives an old malformed account without requiring its deleted branch, but refuses activation', () => {
   const archived = { ...employee, active: false, endDate: '2026-09-10' };

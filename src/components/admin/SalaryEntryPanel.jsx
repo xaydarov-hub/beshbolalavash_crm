@@ -22,7 +22,7 @@ export default function SalaryEntryPanel({ state, salaryAction, session }) {
   const action = useSaveAction();
   const available = state.salaryEntryApiVersion === 1;
   const employees = state.users.filter(user => user.role === 'employee' && user.active !== false && user.branchId === branchId && user.salaryType === 'foiz');
-  const employee = employees.find(user => user.id === employeeId);
+  const employee = employees.find(user => user.id === employeeId) || employees[0];
   const rate = Number(employee?.rate || 0);
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 15000);

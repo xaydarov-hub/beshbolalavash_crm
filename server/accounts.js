@@ -32,3 +32,28 @@ export function removeLegacyDemoAccounts(state) {
   const cleaned = ids.reduce(eraseAccount, state);
   return { ...cleaned, revision: (state.revision || 0) + 1, auditLog: [{ id: uid(), at: new Date().toISOString(), actor: 'System', action: `${ids.length} ta eski demo hisob tozalandi.` }, ...(state.auditLog || [])] };
 }
+
+const LEGACY_DEMO_BRANCHES = [
+  { id: 'branch-1', name: 'Chilonzor filiali' },
+  { id: 'branch-2', name: 'Yunusobod filiali' },
+  { id: 'branch-3', name: 'Sergeli filiali' },
+];
+
+export function removeLegacyDemoBranches(state) {
+  // Only an untouched seed branch (exact id + name, nothing ever assigned to it) is removed.
+  // A branch a real business kept using, renamed, or staffed is left alone.
+  const inUse = new Set([
+    ...state.users.map(u => u.branchId),
+    ...(state.transfers || []).flatMap(t => [t.fromBranchId, t.toBranchId]),
+    ...(state.salaryEntries || []).map(e => e.branchId),
+    ...(state.salarySettlements || []).map(s => s.branchId),
+  ]);
+  const ids = state.branches.filter(b => LEGACY_DEMO_BRANCHES.some(seed => seed.id === b.id && seed.name === b.name) && !inUse.has(b.id)).map(b => b.id);
+  if (!ids.length) return state;
+  return {
+    ...state,
+    branches: state.branches.filter(b => !ids.includes(b.id)),
+    revision: (state.revision || 0) + 1,
+    auditLog: [{ id: uid(), at: new Date().toISOString(), actor: 'System', action: `${ids.length} ta eski demo filial tozalandi.` }, ...(state.auditLog || [])],
+  };
+}

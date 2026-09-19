@@ -1,7 +1,7 @@
 import { validateChanges } from './validation.js';
 import { stateChanges } from '../src/lib/changes.js';
 import { prepareDatabase } from './storage.js';
-import { deleteAccount, removeLegacyDemoAccounts } from './accounts.js';
+import { deleteAccount, removeLegacyDemoAccounts, removeLegacyDemoBranches } from './accounts.js';
 import { loginKey } from '../src/lib/identity.js';
 import { applySale } from './sales.js';
 import { migrateEvaluations, normalizeScores, evaluationTotal } from '../src/lib/evaluation.js';
@@ -70,7 +70,14 @@ async function migratePasswords(users) {
 async function initDb() {
   await prepareDatabase();
   const existing = await dbFile.read();
-  if (existing === null) db.data = buildState();
+  let bootstrapPassword = null;
+  if (existing === null) {
+    db.data = buildState();
+    // A brand-new database has no boss password yet; generate one so first login is possible.
+    bootstrapPassword = crypto.randomBytes(9).toString('base64url');
+    db.data.users[0].passwordHash = await hashPassword(bootstrapPassword);
+    db.data.users[0].firstLogin = true;
+  }
   else {
     if (!Array.isArray(existing.users) || !existing.users.length || !Array.isArray(existing.branches)) throw new Error('Existing CRM database is invalid. Restore a verified backup; existing data was not replaced.');
     db.data = existing;
@@ -89,9 +96,19 @@ async function initDb() {
   }
   if (!Array.isArray(db.data.payrollHistory)) db.data.payrollHistory = [];
   db.data = removeLegacyDemoAccounts(db.data);
+  db.data = removeLegacyDemoBranches(db.data);
   db.data = purgeExpiredTrash(db.data);
   await db.write();
   store = createStore(db.data, next => dbFile.write(next));
+  if (bootstrapPassword) {
+    const boss = db.data.users[0];
+    console.log('='.repeat(64));
+    console.log('Yangi CRM bazasi yaratildi. Boshliq hisobiga birinchi kirish:');
+    console.log(`  Login: ${boss.phone}`);
+    console.log(`  Boshlang'ich parol: ${bootstrapPassword}`);
+    console.log("Birinchi kirishdan so'ng shaxsiy parol o'rnating. Bu parol qayta ko'rsatilmaydi.");
+    console.log('='.repeat(64));
+  }
 }
 
 function makeUsers() {
