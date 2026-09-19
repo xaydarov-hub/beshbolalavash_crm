@@ -77,6 +77,23 @@ Render Web Service sozlamalari:
 Render server uchun `PORT` qiymatini o'zi beradi. Frontend Netlify'da bo'lsa,
 Netlify Environment variables ichida `VITE_API_URL` ga Render service URL'ini kiriting.
 
+## Doimiy ma'lumot saqlash — Render pullik diskisiz
+
+**Muhim**: Render'ning bepul tarifida doimiy disk yo'q. Agar hech narsa sozlanmasa, server har safar qayta ishga tushganda (yangi kod push qilinganda) **bazani yo'qotadi** va yangi, bo'sh baza bilan boshlaydi.
+
+Buning oldini olish uchun ikkita yo'l bor:
+
+1. **Bepul (tavsiya etiladi)**: [upstash.com](https://upstash.com) saytida bepul Redis bazasi yarating (GitHub bilan ro'yxatdan o'tish, kredit karta shart emas). "REST API" bo'limidan ikkita qiymatni oling va Render Environment'ga qo'shing:
+   ```env
+   UPSTASH_REDIS_REST_URL=...
+   UPSTASH_REDIS_REST_TOKEN=...
+   ```
+   Bu ikkalasi sozlangan bo'lsa, server avtomatik ravishda mahalliy faylni emas, shu joyni ishlatadi — va ma'lumot Render qayta ishga tushishidan qat'iy nazar saqlanib qoladi.
+
+2. **Pullik**: Render'da Starter tarifga ($7/oy) o'tib, "Disks" bo'limidan disk ulang (masalan `/var/data`ga), so'ng `DB_PATH=/var/data/crm/db.json` deb Environment'ga qo'shing.
+
+Ikkalasi ham sozlanmagan bo'lsa, server shunchaki mahalliy `DB_PATH` (yoki standart `./server/db.json`) faylini ishlatadi — bu lokal ishlatish uchun yetarli, lekin Render'da doimiy emas.
+
 ## Test ishlatish
 
 ```bash
@@ -96,6 +113,18 @@ Yangi CRM bazasi yaratildi. Boshliq hisobiga birinchi kirish:
 Shu login/parol bilan kirib, darhol shaxsiy parol o'rnating (birinchi kirishda tizim buni taklif qiladi). Boshliq keyin "Xodimlar" bo'limidan admin va xodimlarni o'zi qo'shadi — ularning boshlang'ich parolini shu yerda o'zi belgilaydi.
 
 Demo/test uchun aniq login-parol jadvali endi yo'q: eski qattiq-kodlangan demo hisoblar (va ular ishlatgan filial nomlari) tizimdan butunlay olib tashlandi, chunki haqiqiy foydalanishda ular real ma'lumotlar bilan aralashib, eski demo yozuvlar doim qaytib kelaverar edi.
+
+**Diqqat**: yuqoridagi "Doimiy ma'lumot saqlash" sozlanmagan bo'lsa, bu xabar har safar server qayta ishga tushganda **qayta chiqadi** (har safar yangi, boshqa parol bilan) — bu normal emas, sozlamani to'g'irlash kerakligini bildiradi.
+
+### Boshliq parolini unutib qo'ysa
+
+Xodim yoki admin parolini boshliq "Xodimlar" bo'limidan istalgan vaqt qayta o'rnatishi mumkin. Lekin boshliqning o'zi parolini unutsa, uni tiklaydigan hech kim yo'q — shuning uchun alohida vosita bor. Render "Shell" bo'limida (yoki lokal, tegishli muhit o'zgaruvchilari bilan) ishga tushiring:
+
+```bash
+node server/reset-boss-password.mjs <yangi-parol>
+```
+
+Bu skript server qaysi joyni ishlatayotgan bo'lsa (Upstash yoki fayl), aynan o'sha joydagi boshliq parolini xavfsiz almashtiradi va eski sessiyalarni bekor qiladi.
 
 ## Telegram bildirishnomalari (ixtiyoriy)
 
@@ -121,11 +150,11 @@ src/
 
 ## Keyingi bosqichlar
 
-Bajarilgan: backend API va server tomonidagi huquqlar, mobilga moslashgan interfeys, ilova sifatida o'rnatish (PWA).
+Bajarilgan: backend API va server tomonidagi huquqlar, mobilga moslashgan interfeys, ilova sifatida o'rnatish (PWA), pulsiz doimiy ma'lumot saqlash (Upstash).
 
 Hali qilinishi mumkin bo'lgan qadamlar:
 
-- Render'da pullik tarifga o'tish (bepul tarifda server 15 daqiqadan keyin "uxlab qoladi", birinchi so'rov sekin bo'ladi)
+- Render bepul tarifida server 15 daqiqadan keyin "uxlab qoladi" — birinchi so'rov sekin (30-60 soniya) bo'lishi mumkin. Ma'lumot endi yo'qolmaydi (Upstash tufayli), lekin tezlik uchun pullik tarif ($7/oy) hamon foydali.
 - Excel export + PDF hisobotlar (hozir CSV va PNG bor)
 - Xodimlar uchun smena jadvalini oldindan rejalashtirish
 - QR/GPS orqali davomat belgilash

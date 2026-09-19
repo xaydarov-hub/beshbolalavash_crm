@@ -21,10 +21,15 @@ import { normalizeUserRole } from '../src/lib/roles.js';
 import { applyWorkflowEffects } from './workflows.js';
 import { saveSalaryEntry, settle15DayCycle, moveToTrash, restoreDeletedEntry, purgeExpiredTrash, visibleSalaryState } from './salaryEntries.js';
 import { sendTelegramMessage } from './telegram.js';
+import { createUpstashAdapter } from './upstashAdapter.js';
 
 const app = express();
 const { port: PORT, host: HOST, secret: JWT_SECRET } = serverConfig();
-const dbFile = new JSONFile(process.env.DB_PATH || './server/db.json');
+// Upstash gives durable storage without a paid Render disk; falls back to the local JSON file otherwise.
+const usingUpstash = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+const dbFile = usingUpstash
+  ? createUpstashAdapter(process.env.UPSTASH_REDIS_REST_URL, process.env.UPSTASH_REDIS_REST_TOKEN)
+  : new JSONFile(process.env.DB_PATH || './server/db.json');
 const db = new Low(dbFile, { users: [], branches: [], attendance: [], adjustments: [], sales: {}, leaveRequests: [], advances: [], auditLog: [], notifications: [], evaluations: [], transfers: [] });
 let store;
 const scrypt = promisify(crypto.scrypt);
@@ -69,7 +74,8 @@ async function migratePasswords(users) {
 }
 
 async function initDb() {
-  await prepareDatabase();
+  // prepareDatabase() only knows about the filesystem; Upstash either has the key or doesn't.
+  if (!usingUpstash) await prepareDatabase();
   const existing = await dbFile.read();
   let bootstrapPassword = null;
   if (existing === null) {
