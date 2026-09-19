@@ -81,6 +81,10 @@ a { color: inherit; }
   background: var(--card); color: var(--crust);
 }
 
+.time-select { display: flex; align-items: center; gap: 4px; width: 100%; }
+.time-select select.input { width: auto; min-width: 0; flex: 1 1 0; }
+.time-select-sep { color: var(--muted); font-weight: 600; }
+
 .btn {
   border: 1px solid var(--line); background: transparent; color: var(--sauce-dark);
   padding: 7px 13px; border-radius: 7px; font-size: 13px; cursor: pointer;

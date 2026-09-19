@@ -4,6 +4,7 @@ import { todayISO, fmtHours, hoursBetween, isLate, uid } from "../../lib/utils.j
 import { logAction } from "../../lib/db.js";
 import { useSaveAction } from "../../lib/useSaveAction.js";
 import { managesEmployee, validDate } from "../workflowSupport.js";
+import TimeInput from "../TimeInput.jsx";
 
 const STATUS_LABEL = { keldi: "Keldi", kelmadi: "Kelmadi", tatil: "Ta'til", kasal: "Kasal" };
 const STATUS_BADGE = { keldi: "badge-green", kelmadi: "badge-red", tatil: "badge-blue", kasal: "badge-yellow" };
@@ -88,9 +89,9 @@ export default function Attendance({ state, persist, session }) {
                 <option value="tatil">Ta'til</option>
                 <option value="kasal">Kasal</option>
               </select>
-              <input aria-label={`${emp.name} kelgan vaqti`} type="time" className="input" style={{ padding: "5px 8px" }} placeholder="08:00" disabled={action.busy || r.status !== "keldi"}
+              <TimeInput aria-label={`${emp.name} kelgan vaqti`} className="input" style={{ padding: "5px 8px" }} disabled={action.busy || r.status !== "keldi"}
                 value={r.checkIn} onChange={(e) => updateStatus(emp, { checkIn: e.target.value })} />
-              <input aria-label={`${emp.name} ketgan vaqti`} type="time" className="input" style={{ padding: "5px 8px" }} placeholder="17:00" disabled={action.busy || r.status !== "keldi"}
+              <TimeInput aria-label={`${emp.name} ketgan vaqti`} className="input" style={{ padding: "5px 8px" }} disabled={action.busy || r.status !== "keldi"}
                 value={r.checkOut} onChange={(e) => updateStatus(emp, { checkOut: e.target.value })} />
               <div className="muted" style={{ fontSize: 12.5 }}>{r.status === "keldi" && r.checkIn && r.checkOut ? fmtHours(hrs) : "—"}</div>
               <div>

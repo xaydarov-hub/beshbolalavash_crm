@@ -98,9 +98,10 @@ it('updates the existing admin page after another session adds an employee', () 
 it('does not mark an employee present until attendance is explicitly saved', () => {
   const persist = vi.fn();
   render(<AdminDashboard state={state} session={admin} persist={persist} />);
-  expect(screen.getByRole('combobox')).toHaveValue('');
+  const statusSelect = screen.getByRole('combobox', { name: /holati/ });
+  expect(statusSelect).toHaveValue('');
   expect(persist).not.toHaveBeenCalled();
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'keldi' } });
+  fireEvent.change(statusSelect, { target: { value: 'keldi' } });
   const changed = persist.mock.calls[0][0]({ ...state, auditLog: [] });
   expect(changed.attendance[0]).toMatchObject({ employeeId: 'e', status: 'keldi' });
 });

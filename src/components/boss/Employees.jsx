@@ -7,6 +7,7 @@ import { JOB_ROLES, getJobRole, jobLabel } from "../../lib/roles.js";
 import { logAction } from "../../lib/db.js";
 import EmployeeHistory from "../EmployeeHistory.jsx";
 import ResponsiveTable from "../ResponsiveTable.jsx";
+import TimeInput from "../TimeInput.jsx";
 
 const initialForm = (branchId = "") => ({ name: "", phone: "", password: "", branchId, account: "waiter", position: "Ofitsiant", salaryType: "oylik", rate: "", workStart: "08:00", workEnd: "17:00", hireDate: todayISO() });
 const hasRoleMismatch = user => (user?.role === "admin" && getJobRole({ ...user, role: "employee", jobRole: undefined }) !== "other") || (user?.role === "employee" && /admin|boshqaruvchi|administrator|админ/i.test(user.position || ""));
@@ -109,8 +110,8 @@ export function EmployeeForm({ state, persist, session, employee, deleteUser, on
         {form.account === "other" && <label className="field">Lavozim nomi<input required className="input" {...field("position")} /></label>}
         <label className="field">Maosh turi<select className="input" {...field("salaryType")}>{SALARY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
         <label className="field">{form.salaryType === "foiz" ? "Savdodan foiz (%)" : "Stavka (so‘m)"}<input required min="0" max={form.salaryType === "foiz" ? "100" : "1000000000000"} step="any" type="number" inputMode="decimal" className="input" {...field("rate")} /></label>
-        <label className="field">Ish boshlanishi<input required type="time" className="input" {...field("workStart")} /></label>
-        <label className="field">Ish tugashi<input required type="time" className="input" {...field("workEnd")} /></label>
+        <label className="field">Ish boshlanishi<TimeInput required className="input" {...field("workStart")} /></label>
+        <label className="field">Ish tugashi<TimeInput required className="input" {...field("workEnd")} /></label>
         <label className="field">Ishga kirgan sana<input required type="date" className="input" {...field("hireDate")} /></label>
       </div>
       <p className="hint">{accountRole === "admin" ? "Kirish huquqi: filial boshqaruvi. Davomat, xodimlar, savdo va filial hisobotlarini boshqaradi." : `Kirish huquqi: xodim. ${form.account === "other" ? form.position : selectedJob?.label} shaxsiy sahifasi ochiladi. O‘z davomati, maoshi, baholari va so‘rovlarini ko‘radi.`}</p>
