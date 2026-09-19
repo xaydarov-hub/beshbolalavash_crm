@@ -269,7 +269,11 @@ export async function mergeScopedState(current, next, session) {
 }
 
 const release = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || 'local';
-app.get('/api/health', (_, res) => res.json({ ok: true, release, apiVersion: 2, salaryEntryApiVersion: 1, uptime: Math.floor(process.uptime()) }));
+app.get('/api/health', (_, res) => res.json({
+  ok: true, release, apiVersion: 2, salaryEntryApiVersion: 1, uptime: Math.floor(process.uptime()),
+  storage: usingUpstash ? 'upstash' : 'file',
+  ...(usingUpstash ? { upstashHost: new URL(process.env.UPSTASH_REDIS_REST_URL).host } : {}),
+}));
 
 const loginAttempts = new Map();
 function checkLoginLimit(key, res) {
