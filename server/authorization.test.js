@@ -10,7 +10,7 @@ const profile = (id, role, branchId) => ({ id, role, jobRole: role === 'employee
 const boss = profile('boss', 'boss', null), admin = profile('admin', 'admin', 'b1');
 const waiter = profile('waiter', 'employee', 'b1'), other = profile('other', 'employee', 'b2');
 function fixture() {
-  return { users: [boss, admin, waiter, other], branches: [{ id: 'b1', name: 'One' }, { id: 'b2', name: 'Two' }], attendance: [], adjustments: [], evaluations: [], transfers: [], leaveRequests: [], payrollHistory: [], auditLog: [], notifications: [], dailySales: [], sales: {} };
+  return { users: [boss, admin, waiter, other], branches: [{ id: 'b1', name: 'One' }, { id: 'b2', name: 'Two' }], attendance: [], adjustments: [], evaluations: [], transfers: [], leaveRequests: [], advances: [], payrollHistory: [], auditLog: [], notifications: [], dailySales: [], sales: {} };
 }
 async function transaction(current, session, update) {
   const visible = publicState(current, session);
@@ -83,6 +83,29 @@ describe('atomic branch operations', () => {
     expect(saved.payrollHistory[0]).toEqual(state.payrollHistory[0]);
     expect(saved.payrollHistory[1]).toMatchObject({ total: 100000, branchId: 'b1', savedBy: admin.name });
     expect(saved.payrollHistory[1].employees[0].total).toBe(100000);
+  });
+  it('lets an employee request an advance and an admin decide it, but never the employee themself', async () => {
+    const state = fixture();
+    const requested = await transaction(state, waiter, visible => ({ ...visible, advances: [{ id: 'adv', employeeId: waiter.id, amount: 500000, reason: 'Shifr uchun', status: 'kutilmoqda' }] }));
+    expect(requested.advances[0]).toMatchObject({ employeeId: waiter.id, amount: 500000, status: 'kutilmoqda' });
+    expect(requested.advances[0].requestedAt).toBeTruthy();
+    expect(publicState(requested, admin).advances.some(row => row.id === 'adv')).toBe(true);
+    expect(publicState(requested, boss).advances.some(row => row.id === 'adv')).toBe(true);
+    expect(publicState(requested, other).advances.some(row => row.id === 'adv')).toBe(false);
+
+    await expect(transaction(requested, waiter, visible => ({ ...visible, advances: visible.advances.map(row => ({ ...row, status: 'tasdiqlandi' })) }))).rejects.toThrow(/Faqat o‘zingiz uchun/);
+
+    const decided = await transaction(requested, admin, visible => ({ ...visible, advances: visible.advances.map(row => ({ ...row, status: 'tasdiqlandi' })) }));
+    expect(decided.advances[0]).toMatchObject({ status: 'tasdiqlandi', decidedBy: admin.name });
+    expect(decided.advances[0].decidedAt).toBeTruthy();
+    await expect(transaction(decided, admin, visible => ({ ...visible, advances: visible.advances.map(row => ({ ...row, status: 'radetildi' })) }))).rejects.toThrow(/allaqachon/);
+  });
+  it('rejects a non-positive advance amount, a missing reason, and edits to an already-requested amount', async () => {
+    const state = fixture();
+    await expect(transaction(state, waiter, visible => ({ ...visible, advances: [{ id: 'adv', employeeId: waiter.id, amount: 0, reason: 'x', status: 'kutilmoqda' }] }))).rejects.toThrow();
+    await expect(transaction(state, waiter, visible => ({ ...visible, advances: [{ id: 'adv', employeeId: waiter.id, amount: 1000, reason: '', status: 'kutilmoqda' }] }))).rejects.toThrow();
+    const requested = await transaction(state, waiter, visible => ({ ...visible, advances: [{ id: 'adv', employeeId: waiter.id, amount: 1000, reason: 'x', status: 'kutilmoqda' }] }));
+    await expect(transaction(requested, admin, visible => ({ ...visible, advances: visible.advances.map(row => ({ ...row, amount: 2000 })) }))).rejects.toThrow(/o‘zgartirish mumkin emas/);
   });
   it('does not expose targeted notifications to another user of the same role', () => {
     const state = { ...fixture(), notifications: [{ id: 'private', employeeId: other.id, forRole: 'employee', text: 'Private' }, { id: 'branch', forRole: 'admin', branchId: 'b2', text: 'Branch two' }, { id: 'all', text: 'All staff' }] };

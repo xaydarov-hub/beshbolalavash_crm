@@ -4,12 +4,12 @@ import { validateChanges } from './validation.js';
 
 const boss = { id: 'boss', role: 'boss', name: 'Boss' };
 const employee = { id: 'e', role: 'employee', name: 'Employee', branchId: 'missing' };
-const state = { users: [boss, employee, { id: 'other', role: 'employee' }], branches: [], attendance: [{ employeeId: 'e' }, { employeeId: 'other' }], adjustments: [{ employeeId: 'e' }], evaluations: [{ employeeId: 'e' }], leaveRequests: [{ employeeId: 'e' }], transfers: [{ employeeId: 'e', fromBranchId: 'missing' }], dailySales: [{ employeeId: 'e' }], notifications: [{ employeeId: 'e' }], sales: { 'e:2026-01': 10, 'other:2026-01': 20 }, payrollHistory: [{ id: 'pay', employees: [{ employeeId: 'e', total: 7 }, { employeeId: 'other', total: 14 }], total: 21 }], auditLog: [] };
+const state = { users: [boss, employee, { id: 'other', role: 'employee' }], branches: [], attendance: [{ employeeId: 'e' }, { employeeId: 'other' }], adjustments: [{ employeeId: 'e' }], evaluations: [{ employeeId: 'e' }], leaveRequests: [{ employeeId: 'e' }], advances: [{ employeeId: 'e' }], transfers: [{ employeeId: 'e', fromBranchId: 'missing' }], dailySales: [{ employeeId: 'e' }], notifications: [{ employeeId: 'e' }], sales: { 'e:2026-01': 10, 'other:2026-01': 20 }, payrollHistory: [{ id: 'pay', employees: [{ employeeId: 'e', total: 7 }, { employeeId: 'other', total: 14 }], total: 21 }], auditLog: [] };
 
 it('deletes an orphaned account and linked records while preserving other staff and audit', () => {
   const next = deleteAccount(state, boss, 'e', employee, employee);
   expect(next.users.some(u => u.id === 'e')).toBe(false);
-  for (const key of ['attendance', 'adjustments', 'evaluations', 'leaveRequests', 'transfers', 'dailySales', 'notifications']) expect(next[key].some(r => r.employeeId === 'e')).toBe(false);
+  for (const key of ['attendance', 'adjustments', 'evaluations', 'leaveRequests', 'advances', 'transfers', 'dailySales', 'notifications']) expect(next[key].some(r => r.employeeId === 'e')).toBe(false);
   expect(next.attendance).toEqual([{ employeeId: 'other' }]);
   expect(next.sales).toEqual({ 'other:2026-01': 20 });
   expect(next.payrollHistory[0].total).toBe(14);

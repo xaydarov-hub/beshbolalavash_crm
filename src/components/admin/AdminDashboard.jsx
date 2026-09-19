@@ -7,6 +7,7 @@ import { EmployeeForm } from "../boss/Employees.jsx";
 import Attendance from "../boss/Attendance.jsx";
 import Adjustments from "../boss/Adjustments.jsx";
 import Leaves from "../boss/Leaves.jsx";
+import Advances from "../boss/Advances.jsx";
 import Reports from "../boss/Reports.jsx";
 import SalaryEntryPanel from "./SalaryEntryPanel.jsx";
 import { jobLabel } from "../../lib/roles.js";
@@ -19,6 +20,7 @@ const TABS = [
   { id: "evaluations", label: "Ball baholash" },
   { id: "adjustments", label: "Jarima / Bonus" },
   { id: "leaves", label: "Ta'til so'rovlari" },
+  { id: "advances", label: "Avans so'rovlari" },
   { id: "history", label: "Xodim tarixi" },
   { id: "transfer", label: "Xodim ko'chirish" },
   { id: "reports", label: "Filial hisoboti" },
@@ -37,6 +39,7 @@ export default function AdminDashboard({ state, persist, session, saveSale, sala
   const selectedEmployee = branchEmployees.find(u => u.id === historyId);
   const branch = state.branches.find(b => b.id === session.branchId);
   const pendingLeaves = state.leaveRequests.filter(request => request.status === "kutilmoqda" && employees.some(employee => employee.id === request.employeeId)).length;
+  const pendingAdvances = (state.advances || []).filter(request => request.status === "kutilmoqda" && employees.some(employee => employee.id === request.employeeId)).length;
   const employeeScope = employee => employee.role === "employee" && employee.branchId === session.branchId;
   const finished = message => { setHistoryId(""); setAdding(false); setNotice(message); setTab("employees"); };
 
@@ -46,7 +49,7 @@ export default function AdminDashboard({ state, persist, session, saveSale, sala
     {!branch ? <p role="alert">Boshliq profilingizga mavjud filial biriktirishi kerak. Filial tanlangach xodimlar va boshqaruv bo‘limlari ochiladi.</p> : <>
       <nav className="tabs" aria-label="Filial boshqaruvi">
         {TABS.map(item => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} className={`tab-btn ${tab === item.id ? "active" : ""}`} onClick={() => { setTab(item.id); setNotice(""); }}>
-          {item.label}{item.id === "leaves" && pendingLeaves > 0 ? ` (${pendingLeaves})` : ""}
+          {item.label}{item.id === "leaves" && pendingLeaves > 0 ? ` (${pendingLeaves})` : ""}{item.id === "advances" && pendingAdvances > 0 ? ` (${pendingAdvances})` : ""}
         </button>)}
       </nav>
       {notice && <p role="status">{notice}</p>}
@@ -79,6 +82,7 @@ export default function AdminDashboard({ state, persist, session, saveSale, sala
       {tab === "transfer" && <EmployeeTransfer state={state} persist={persist} session={session} employeeScope={employeeScope} />}
       {tab === "adjustments" && <Adjustments state={state} persist={persist} session={session} />}
       {tab === "leaves" && <Leaves state={state} persist={persist} session={session} />}
+      {tab === "advances" && <Advances state={state} persist={persist} session={session} />}
       {tab === "reports" && <Reports state={state} persist={persist} session={session} />}
     </>}
   </div>;

@@ -24,7 +24,7 @@ import { saveSalaryEntry, settle15DayCycle, moveToTrash, restoreDeletedEntry, pu
 const app = express();
 const { port: PORT, host: HOST, secret: JWT_SECRET } = serverConfig();
 const dbFile = new JSONFile(process.env.DB_PATH || './server/db.json');
-const db = new Low(dbFile, { users: [], branches: [], attendance: [], adjustments: [], sales: {}, leaveRequests: [], auditLog: [], notifications: [], evaluations: [], transfers: [] });
+const db = new Low(dbFile, { users: [], branches: [], attendance: [], adjustments: [], sales: {}, leaveRequests: [], advances: [], auditLog: [], notifications: [], evaluations: [], transfers: [] });
 let store;
 const scrypt = promisify(crypto.scrypt);
 const zip = promisify(gzip);
@@ -82,7 +82,7 @@ async function initDb() {
     if (!Array.isArray(existing.users) || !existing.users.length || !Array.isArray(existing.branches)) throw new Error('Existing CRM database is invalid. Restore a verified backup; existing data was not replaced.');
     db.data = existing;
   }
-  for (const collection of ['attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'dailySales', 'payrollHistory', 'salaryEntries', 'salarySettlements', 'trash']) {
+  for (const collection of ['attendance', 'adjustments', 'leaveRequests', 'advances', 'auditLog', 'notifications', 'evaluations', 'transfers', 'dailySales', 'payrollHistory', 'salaryEntries', 'salarySettlements', 'trash']) {
     db.data[collection] ??= [];
     if (!Array.isArray(db.data[collection])) throw new Error(`Invalid CRM collection: ${collection}. Existing data was not replaced.`);
   }
@@ -141,6 +141,7 @@ function buildState() {
     adjustments: [],
     sales: {},
     leaveRequests: [],
+    advances: [],
     auditLog: [{ id: uid(), at: new Date().toLocaleString('uz-UZ'), actor: 'System', action: 'CRM serveri ishga tushdi.' }],
     notifications: [{ id: uid(), forRole: 'boss', text: 'Sistema ishga tushdi. Boshqaruv tayyor.', at: today, read: false }],
     evaluations: [],
@@ -214,6 +215,7 @@ export function publicState(state, session) {
     adjustments: state.adjustments.filter((record) => visibleIds.has(record.employeeId)),
     evaluations: state.evaluations.filter((record) => visibleIds.has(record.employeeId)),
     leaveRequests: state.leaveRequests.filter((record) => visibleIds.has(record.employeeId)),
+    advances: (state.advances || []).filter((record) => visibleIds.has(record.employeeId)),
     transfers: state.transfers.filter((record) => visibleIds.has(record.employeeId)),
   };
 }
@@ -227,7 +229,7 @@ export async function mergeScopedState(current, next, session) {
   };
   if (session.role === 'boss') Object.assign(merged, next);
   else if (session.role === 'admin') {
-    for (const collection of ['users', 'attendance', 'adjustments', 'leaveRequests', 'evaluations', 'transfers']) merged[collection] = replaceVisible(collection);
+    for (const collection of ['users', 'attendance', 'adjustments', 'leaveRequests', 'advances', 'evaluations', 'transfers']) merged[collection] = replaceVisible(collection);
     // Reports may contain multiple branches. Never replace a filtered report with its visible subset.
     const reportIds = new Set((current.payrollHistory || []).map(row => row.id));
     merged.payrollHistory = [...(current.payrollHistory || []), ...(next.payrollHistory || []).filter(row => !reportIds.has(row.id)).map(row => ({ ...row, branchId: session.branchId, savedBy: session.name }))];
@@ -235,6 +237,7 @@ export async function mergeScopedState(current, next, session) {
     merged.auditLog = [...(next.auditLog || []).filter(row => !auditIds.has(row.id)).map(row => ({ ...row, actor: session.name, actorId: session.id, branchId: session.branchId })), ...(current.auditLog || [])];
   } else if (session.role === 'employee') {
     merged.leaveRequests = replaceVisible('leaveRequests');
+    merged.advances = replaceVisible('advances');
   }
   merged.dailySales = current.dailySales || [];
   merged.sales = current.sales || {};

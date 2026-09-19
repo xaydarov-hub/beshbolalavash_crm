@@ -29,9 +29,9 @@ function downloadReportPng({ month, reports, branches, total }) {
   context.fillText(`Hisobot oyi: ${month}     Yaratilgan: ${todayISO()}`, 55, 96);
 
   const columns = [
-    [55, 285, "Xodim"], [340, 200, "Filial"], [540, 150, "Lavozim"], [690, 72, "Kun"],
-    [762, 80, "Soat"], [842, 135, "Savdo"], [977, 130, "Bonus"], [1107, 130, "Jarima"],
-    [1237, 115, "Ball (o'rt.)"], [1352, 270, "Jami maosh"],
+    [55, 250, "Xodim"], [305, 175, "Filial"], [480, 135, "Lavozim"], [615, 62, "Kun"],
+    [677, 70, "Soat"], [747, 120, "Savdo"], [867, 110, "Bonus"], [977, 110, "Jarima"],
+    [1087, 110, "Avans"], [1197, 95, "Ball (o'rt.)"], [1292, 330, "Jami maosh"],
   ];
   let y = 135;
   context.fillStyle = "#FBF3E4";
@@ -45,7 +45,7 @@ function downloadReportPng({ month, reports, branches, total }) {
     if (index % 2) { context.fillStyle = "#FBF3E4"; context.fillRect(40, y, width - 80, rowHeight); }
     const branch = branches.find((item) => item.id === report.emp.branchId)?.name || "—";
     const average = report.evaluation.count ? report.evaluation.average.toFixed(1) : "—";
-    const cells = [report.emp.name, branch, report.emp.position, report.worked, Math.round(report.totalHours), fmt(report.sales), fmt(report.bonuses), fmt(report.fines), average, `${fmt(report.total)} so'm`];
+    const cells = [report.emp.name, branch, report.emp.position, report.worked, Math.round(report.totalHours), fmt(report.sales), fmt(report.bonuses), fmt(report.fines), fmt(report.advances), average, `${fmt(report.total)} so'm`];
     context.fillStyle = "#2B1B14";
     cells.forEach((value, cellIndex) => {
       const [x, maxWidth] = columns[cellIndex];
@@ -61,11 +61,11 @@ function downloadReportPng({ month, reports, branches, total }) {
   context.fillRect(40, y, width - 80, rowHeight + 10);
   context.fillStyle = "#2B1B14";
   context.font = "700 19px Segoe UI, Arial, sans-serif";
-  context.fillText("JAMI MAOSH:", 1220, y + 32);
-  context.fillText(`${fmt(total)} so'm`, 1405, y + 32);
+  context.fillText("JAMI MAOSH:", 1150, y + 32);
+  context.fillText(`${fmt(total)} so'm`, 1345, y + 32);
   context.fillStyle = "#8A7860";
   context.font = "14px Segoe UI, Arial, sans-serif";
-  context.fillText("Maosh = asosiy hisob + bonus − jarima. Ballar xizmat sifati ko'rsatkichi, maoshga avtomatik qo'shilmaydi.", 55, height - 28);
+  context.fillText("Maosh = asosiy hisob + bonus − jarima − avans. Ballar xizmat sifati ko'rsatkichi, maoshga avtomatik qo'shilmaydi.", 55, height - 28);
   canvas.toBlob((blob) => {
     if (!blob) return;
     const url = URL.createObjectURL(blob);
@@ -88,7 +88,7 @@ export default function Reports({ state, persist, session = { role: 'boss', name
   const history = [...(state.payrollHistory || [])].filter(record => branchId === 'all' || record.branchId === branchId).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   const exportCSV = () => {
-    const header = ["Xodim", "Filial", "Lavozim", "Ishlagan kun", "Soat", "Savdo", "Bonus", "Jarima", "Ball jami", "Ball o'rtacha", "Jami maosh"];
+    const header = ["Xodim", "Filial", "Lavozim", "Ishlagan kun", "Soat", "Savdo", "Bonus", "Jarima", "Avans", "Ball jami", "Ball o'rtacha", "Jami maosh"];
     const lines = reports.map((report) => [
       report.emp.name,
       state.branches.find((branch) => branch.id === report.emp.branchId)?.name || "",
@@ -98,6 +98,7 @@ export default function Reports({ state, persist, session = { role: 'boss', name
       Math.round(report.sales),
       Math.round(report.bonuses),
       Math.round(report.fines),
+      Math.round(report.advances),
       report.evaluation.total,
       report.evaluation.count ? report.evaluation.average.toFixed(1) : "",
       Math.round(report.total),
@@ -123,7 +124,7 @@ export default function Reports({ state, persist, session = { role: 'boss', name
       const total = freshReports.reduce((sum, report) => sum + report.total, 0);
       const snapshot = {
         id: uid(), month, branchId, createdAt: new Date().toISOString(), savedBy: session.name, total,
-        employees: freshReports.map(report => ({ employeeId: report.emp.id, name: report.emp.name, branchId: report.emp.branchId, position: report.emp.position, worked: report.worked, hours: report.totalHours, sales: report.sales, saleRecords: report.saleRecords, base: report.base, bonuses: report.bonuses, fines: report.fines, evaluation: report.evaluation, total: report.total })),
+        employees: freshReports.map(report => ({ employeeId: report.emp.id, name: report.emp.name, branchId: report.emp.branchId, position: report.emp.position, worked: report.worked, hours: report.totalHours, sales: report.sales, saleRecords: report.saleRecords, base: report.base, bonuses: report.bonuses, fines: report.fines, advances: report.advances, evaluation: report.evaluation, total: report.total })),
       };
       return logAction({ ...current, payrollHistory: [...(current.payrollHistory || []), snapshot] }, session.name, `${month} oylik hisoboti saqlandi. Jami: ${fmt(total)} so‘m.`);
     }), 'Oylikning yangi nusxasi saqlandi. Oldingi nusxalar tarixda qoldi.');
@@ -148,17 +149,18 @@ export default function Reports({ state, persist, session = { role: 'boss', name
 
       {action.message && <p role="status">{action.message}</p>}
       <ResponsiveTable>
-        <div className="trow thead" style={{ gridTemplateColumns: "1.15fr 0.85fr 0.45fr 0.5fr 0.8fr 0.65fr 0.65fr 0.65fr 0.8fr" }}>
-          <div>Xodim</div><div>Filial</div><div>Kun</div><div>Soat</div><div>Savdo</div><div>Bonus</div><div>Jarima</div><div>Ball</div><div>Jami</div>
+        <div className="trow thead" style={{ gridTemplateColumns: "1.1fr 0.8fr 0.4fr 0.45fr 0.7fr 0.6fr 0.6fr 0.6fr 0.6fr 0.75fr" }}>
+          <div>Xodim</div><div>Filial</div><div>Kun</div><div>Soat</div><div>Savdo</div><div>Bonus</div><div>Jarima</div><div>Avans</div><div>Ball</div><div>Jami</div>
         </div>
         {reports.map((report) => (
-          <div key={report.emp.id} className="trow" style={{ gridTemplateColumns: "1.15fr 0.85fr 0.45fr 0.5fr 0.8fr 0.65fr 0.65fr 0.65fr 0.8fr" }}>
+          <div key={report.emp.id} className="trow" style={{ gridTemplateColumns: "1.1fr 0.8fr 0.4fr 0.45fr 0.7fr 0.6fr 0.6fr 0.6fr 0.6fr 0.75fr" }}>
             <div>{report.emp.name}</div>
             <div className="muted" style={{ fontSize: 12 }}>{state.branches.find((branch) => branch.id === report.emp.branchId)?.name}</div>
             <div>{report.worked}</div><div>{Math.round(report.totalHours)}</div>
             <div>{fmt(report.sales)}</div>
             <div style={{ color: "var(--herb)" }}>{report.bonuses ? "+" + fmt(report.bonuses) : "—"}</div>
             <div style={{ color: "var(--sauce)" }}>{report.fines ? "-" + fmt(report.fines) : "—"}</div>
+            <div style={{ color: "var(--sauce)" }}>{report.advances ? "-" + fmt(report.advances) : "—"}</div>
             <div>{report.evaluation.count ? `${report.evaluation.average.toFixed(0)} avg.` : "—"}</div>
             <div style={{ fontWeight: 700 }}>{fmt(report.total)}</div>
           </div>
@@ -174,13 +176,13 @@ export default function Reports({ state, persist, session = { role: 'boss', name
             <summary><b>{record.month}</b> · {record.branchId === 'all' ? 'Barcha filiallar' : state.branches.find(branch => branch.id === record.branchId)?.name || 'Filial'} · {record.employees?.length || 0} xodim · {fmt(record.total)} so‘m</summary>
             <p className="hint">Saqlangan: {record.createdAt?.replace('T', ' ').slice(0, 19)} · {record.savedBy || 'Boshliq'}</p>
             <ResponsiveTable>
-              <div className="trow thead" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr' }}><div>Xodim</div><div>Asosiy maosh</div><div>Bonus</div><div>Jarima</div><div>Jami</div></div>
-              {(record.employees || []).map(employee => <div key={employee.employeeId} className="trow" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr' }}><div>{employee.name}</div><div>{fmt(employee.base)}</div><div>{fmt(employee.bonuses)}</div><div>{fmt(employee.fines)}</div><div>{fmt(employee.total)}</div></div>)}
+              <div className="trow thead" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr 1fr' }}><div>Xodim</div><div>Asosiy maosh</div><div>Bonus</div><div>Jarima</div><div>Avans</div><div>Jami</div></div>
+              {(record.employees || []).map(employee => <div key={employee.employeeId} className="trow" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr 1fr' }}><div>{employee.name}</div><div>{fmt(employee.base)}</div><div>{fmt(employee.bonuses)}</div><div>{fmt(employee.fines)}</div><div>{fmt(employee.advances)}</div><div>{fmt(employee.total)}</div></div>)}
             </ResponsiveTable>
           </details>
         ))}
       </ResponsiveTable>
-      <div className="hint">Hisob: asosiy maosh + bonus − jarima. Savdoni «Kunlik savdo» bo‘limida kiriting; ball xizmat sifati ko'rsatkichi bo'lib, maoshga avtomatik qo'shilmaydi.</div>
+      <div className="hint">Hisob: asosiy maosh + bonus − jarima − avans. Savdoni «Kunlik savdo» bo‘limida kiriting; ball xizmat sifati ko'rsatkichi bo'lib, maoshga avtomatik qo'shilmaydi.</div>
     </div>
   );
 }

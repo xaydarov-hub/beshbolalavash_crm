@@ -12,7 +12,7 @@ import { todayISO } from '../lib/utils.js';
 import { salaryMoney } from '../lib/salaryEntries.js';
 const employee = { id: 'e', role: 'employee', name: 'Abdulloh', branchId: 'b', position: 'Ofitsiant', salaryType: 'foiz', rate: 7 };
 const admin = { id: 'a', role: 'admin', name: 'Admin', branchId: 'b' };
-const state = { users: [employee], branches: [{ id: 'b', name: 'Filial' }], attendance: [], adjustments: [], evaluations: [], dailySales: [], sales: {}, transfers: [], leaveRequests: [] };
+const state = { users: [employee], branches: [{ id: 'b', name: 'Filial' }], attendance: [], adjustments: [], evaluations: [], dailySales: [], sales: {}, transfers: [], leaveRequests: [], advances: [] };
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it('admin can open employee history and see a selected employee', () => {
   render(<AdminDashboard state={state} session={admin} persist={vi.fn()} />);
@@ -142,4 +142,25 @@ it('removes archived accounts from the active list and shows them only with the 
   expect(screen.queryByRole('button', { name: 'Admin (arxiv)', exact: true })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('checkbox'));
   expect(screen.getByRole('button', { name: 'Admin (arxiv)', exact: true })).toBeInTheDocument();
+});
+
+it('lets an employee submit an advance request and an admin approve it', async () => {
+  const persist = vi.fn().mockResolvedValue(true);
+  render(<EmployeeDashboard state={state} session={employee} persist={persist} saveSale={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: /Avans so'rash/ }));
+  fireEvent.change(screen.getByLabelText('Summa (so\'m)'), { target: { value: '500000' } });
+  fireEvent.change(screen.getByLabelText('Sababi'), { target: { value: 'Shoshilinch ehtiyoj' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Yuborish' }));
+  await waitFor(() => expect(persist).toHaveBeenCalled());
+  const requested = persist.mock.calls[0][0]({ ...state, auditLog: [] });
+  expect(requested.advances[0]).toMatchObject({ employeeId: 'e', amount: 500000, reason: 'Shoshilinch ehtiyoj', status: 'kutilmoqda' });
+
+  const pending = { ...state, users: [employee, admin], advances: [{ id: 'adv-1', employeeId: 'e', amount: 500000, reason: 'Shoshilinch ehtiyoj', status: 'kutilmoqda' }] };
+  const adminPersist = vi.fn().mockResolvedValue(true);
+  render(<AdminDashboard state={pending} session={admin} persist={adminPersist} saveSale={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: /Avans so'rovlari/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Tasdiqlash' }));
+  await waitFor(() => expect(adminPersist).toHaveBeenCalled());
+  const decided = adminPersist.mock.calls[0][0]({ ...pending, auditLog: [] });
+  expect(decided.advances[0].status).toBe('tasdiqlandi');
 });

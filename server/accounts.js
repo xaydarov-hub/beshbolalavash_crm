@@ -3,7 +3,7 @@ import { uid } from '../src/lib/utils.js';
 
 export function eraseAccount(state, employeeId) {
   const next = { ...state, users: state.users.filter(u => u.id !== employeeId) };
-  for (const key of ['attendance', 'adjustments', 'evaluations', 'leaveRequests', 'transfers', 'dailySales', 'notifications']) {
+  for (const key of ['attendance', 'adjustments', 'evaluations', 'leaveRequests', 'advances', 'transfers', 'dailySales', 'notifications']) {
     next[key] = (state[key] || []).filter(row => row.employeeId !== employeeId);
   }
   next.sales = Object.fromEntries(Object.entries(state.sales || {}).filter(([key]) => !key.startsWith(`${employeeId}:`)));

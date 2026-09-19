@@ -19,6 +19,8 @@ export default function Overview({ state }) {
   const totalSalary = reports.reduce((s, r) => s + r.total, 0);
   const totalBonus = reports.reduce((s, r) => s + r.bonuses, 0);
   const totalFine = reports.reduce((s, r) => s + r.fines, 0);
+  const totalAdvance = reports.reduce((s, r) => s + r.advances, 0);
+  const pendingAdvances = (state.advances || []).filter((a) => a.status === "kutilmoqda").length;
 
   const notifs = state.notifications.filter((n) => n.forRole === "boss");
 
@@ -43,7 +45,7 @@ export default function Overview({ state }) {
         </div>
       </div>
 
-      <div className="grid grid-3 section-gap">
+      <div className="grid grid-4 section-gap">
         <div className="stat-card">
           <div className="label">💰 Bu oy maosh (jami)</div>
           <div className="value accent">{fmt(totalSalary)} so'm</div>
@@ -55,6 +57,10 @@ export default function Overview({ state }) {
         <div className="stat-card">
           <div className="label">➖ Jarimalar</div>
           <div className="value red">-{fmt(totalFine)} so'm</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">💸 Avanslar{pendingAdvances > 0 ? ` (${pendingAdvances} kutilmoqda)` : ""}</div>
+          <div className="value red">-{fmt(totalAdvance)} so'm</div>
         </div>
       </div>
 

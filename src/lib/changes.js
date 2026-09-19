@@ -1,4 +1,4 @@
-export const EDITABLE_COLLECTIONS = ['users', 'branches', 'attendance', 'adjustments', 'leaveRequests', 'auditLog', 'notifications', 'evaluations', 'transfers', 'payrollHistory'];
+export const EDITABLE_COLLECTIONS = ['users', 'branches', 'attendance', 'adjustments', 'leaveRequests', 'advances', 'auditLog', 'notifications', 'evaluations', 'transfers', 'payrollHistory'];
 export const SERVER_MANAGED_COLLECTIONS = ['salaryEntries', 'salarySettlements', 'trash'];
 
 export function stateChanges(before, after) {

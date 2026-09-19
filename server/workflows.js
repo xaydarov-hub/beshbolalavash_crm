@@ -27,6 +27,13 @@ export function applyWorkflowEffects(current, input, changes, session) {
         next.attendance = [...byDate.values()];
       }
     }
+    if (collection === 'advances') {
+      const employee = next.users.find(user => user.id === after.employeeId);
+      next.advances = next.advances.map(row => row.id === after.id ? {
+        ...row, branchId: employee.branchId,
+        ...(!before ? { requestedAt: new Date().toISOString() } : { decidedBy: session.name, decidedAt: new Date().toISOString() }),
+      } : row);
+    }
     if (collection === 'attendance') {
       const employee = next.users.find(user => user.id === after.employeeId);
       next.attendance = next.attendance.map(row => row.id === after.id ? {
@@ -42,7 +49,7 @@ export function applyWorkflowEffects(current, input, changes, session) {
     if (collection !== 'payrollHistory' || !after) continue;
     const employees = after.employees.map(({ employeeId }) => {
       const report = computeEmployeeReport(next, employeeId, after.month);
-      return { employeeId, name: report.emp.name, branchId: report.emp.branchId, worked: report.worked, hours: report.totalHours, sales: report.sales, saleRecords: report.saleRecords, salaryEntryCommission: report.salaryEntryCommission, salaryEntryRawAmount: report.salaryEntryRawAmount, base: report.base, bonuses: report.bonuses, fines: report.fines, total: report.total };
+      return { employeeId, name: report.emp.name, branchId: report.emp.branchId, worked: report.worked, hours: report.totalHours, sales: report.sales, saleRecords: report.saleRecords, salaryEntryCommission: report.salaryEntryCommission, salaryEntryRawAmount: report.salaryEntryRawAmount, base: report.base, bonuses: report.bonuses, fines: report.fines, advances: report.advances, total: report.total };
     });
     next.payrollHistory = next.payrollHistory.map(row => row.id === after.id ? {
       id: row.id, month: after.month, branchId: session.role === 'admin' ? session.branchId : (after.branchId || 'all'),

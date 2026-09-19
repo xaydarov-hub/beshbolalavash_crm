@@ -18,6 +18,8 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
   if (!r) return <p className="empty" role="status">Xodim profili topilmadi. Ma’lumotlarni yangilang yoki qayta kiring.</p>;
 
   const myLeaves = state.leaveRequests.filter((l) => l.employeeId === session.id);
+  const myAdvances = (state.advances || []).filter((a) => a.employeeId === session.id);
+  const pendingAdvances = myAdvances.filter((a) => a.status === "kutilmoqda").length;
   const hasSales = session.salaryType === "foiz" || (state.dailySales || []).some(record => record.employeeId === session.id);
 
   return (
@@ -31,6 +33,7 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
         <button className={`tab-btn ${tab === "dashboard" ? "active" : ""}`} onClick={() => setTab("dashboard")}>🏠 Bosh sahifa</button>
         <button className={`tab-btn ${tab === "attendance" ? "active" : ""}`} onClick={() => setTab("attendance")}>🕐 Davomat tarixi</button>
         <button className={`tab-btn ${tab === "leaves" ? "active" : ""}`} onClick={() => setTab("leaves")}>🏖 Ta'til so'rash</button>
+        <button className={`tab-btn ${tab === "advances" ? "active" : ""}`} onClick={() => setTab("advances")}>💸 Avans so'rash{pendingAdvances > 0 && <span className="badge badge-yellow" style={{ marginLeft: 2 }}>{pendingAdvances}</span>}</button>
         <button className={`tab-btn ${tab === "points" ? "active" : ""}`} onClick={() => setTab("points")}>⭐ Ballarim</button>
         <button className={`tab-btn ${tab === "profile" ? "active" : ""}`} onClick={() => setTab("profile")}>👤 Profil</button>
       </nav>
@@ -49,10 +52,11 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
             <div className="stat-card"><div className="label">⏳ Ishlagan vaqt</div><div className="value">{fmtHours(r.totalHours)}</div></div>
             <div className="stat-card"><div className="label">💰 Bu oy maosh</div><div className="value accent">{fmt(r.total)} so'm</div></div>
           </div>
-          <div className="grid grid-3 section-gap">
+          <div className="grid grid-4 section-gap">
             <div className="stat-card"><div className="label">💼 Asosiy ({SALARY_TYPES.find(t=>t.id===session.salaryType)?.label})</div><div className="value">{fmt(r.base)}</div></div>
             <div className="stat-card"><div className="label">➕ Bonus</div><div className="value green">+{fmt(r.bonuses)}</div></div>
             <div className="stat-card"><div className="label">➖ Jarima</div><div className="value red">-{fmt(r.fines)}</div></div>
+            <div className="stat-card"><div className="label">💸 Avans</div><div className="value red">-{fmt(r.advances)}</div></div>
           </div>
 
           <h3 className="section-title">📝 Jarima va bonuslar tarixi</h3>
@@ -94,6 +98,8 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
 
       {tab === "leaves" && <LeaveRequestForm state={state} persist={persist} session={session} myLeaves={myLeaves} />}
 
+      {tab === "advances" && <AdvanceRequestForm persist={persist} session={session} myAdvances={myAdvances} />}
+
       {tab === "points" && (
         <div>
           <div className="grid grid-3 section-gap">
@@ -127,6 +133,55 @@ export default function EmployeeDashboard({ state, persist, session, saveSale })
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function AdvanceRequestForm({ persist, session, myAdvances }) {
+  const action = useSaveAction();
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+
+  const submit = async event => {
+    event.preventDefault();
+    const numericAmount = Number(String(amount).replace(/\s/g, ""));
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 1e12) { action.setMessage("Summani to‘g‘ri kiriting."); return; }
+    if (!reason.trim()) { action.setMessage("Sababni yozing."); return; }
+    const ok = await action.run(() => persist(s => {
+      if ((s.advances || []).some(request => request.employeeId === session.id && request.status === "kutilmoqda")) throw new Error("Sizda hali ko‘rib chiqilmagan avans so‘rovi bor.");
+      return { ...s, advances: [...(s.advances || []), { id: uid(), employeeId: session.id, amount: numericAmount, reason: reason.trim(), status: "kutilmoqda" }] };
+    }), "So‘rov serverga yuborildi. Tasdiqlash holatini quyida kuzating.");
+    if (ok) { setAmount(""); setReason(""); }
+  };
+
+  return (
+    <div>
+      <form className="card card-pad section-gap" style={{ maxWidth: 480 }} onSubmit={submit}>
+        <h3 className="section-title">Yangi avans so'rovi</h3>
+        <fieldset disabled={action.busy} style={{ border: 0, padding: 0, margin: 0 }}>
+        <label className="field"><div className="label">Summa (so'm)</div>
+          <input required className="input" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="500 000" /></label>
+        <label className="field"><div className="label">Sababi</div>
+          <input required maxLength={1000} className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+        <button className="btn btn-primary" type="submit" disabled={action.busy}>{action.busy ? "Yuborilmoqda..." : "Yuborish"}</button>
+        </fieldset>
+      </form>
+
+      {action.message && <p role="status">{action.message}</p>}
+      <p className="hint">Tasdiqlangan avans shu oyning maoshidan avtomatik ayiriladi.</p>
+      <h3 className="section-title">Mening so'rovlarim</h3>
+      <ResponsiveTable>
+        {myAdvances.length === 0 && <div className="empty">Hali so'rov yo'q.</div>}
+        {[...myAdvances].reverse().map((a) => (
+          <div key={a.id} className="trow" style={{ gridTemplateColumns: "1fr 1.6fr 1fr" }}>
+            <span className="muted">{fmt(a.amount)} so‘m</span>
+            <span className="muted">{a.reason}</span>
+            <span className={`badge ${a.status === "tasdiqlandi" ? "badge-green" : a.status === "radetildi" ? "badge-red" : "badge-gray"}`}>
+              {a.status === "tasdiqlandi" ? "Tasdiqlandi" : a.status === "radetildi" ? "Rad etildi" : "Kutilmoqda"}
+            </span>
+          </div>
+        ))}
+      </ResponsiveTable>
     </div>
   );
 }

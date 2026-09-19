@@ -45,7 +45,7 @@ export function validateChanges(current, next, changes, session) {
       if ((!before && !password) || (password && (typeof password !== 'string' || password.trim().length < 4 || password.length > 1024))) fail('Boshlang‘ich parol kamida 4 belgidan iborat bo‘lsin.');
     }
     if (collection === 'branches' && (!text(row.name) || next.branches.some(b => b.id !== row.id && b.name.trim().toLowerCase() === row.name.trim().toLowerCase()))) fail('Filial nomi bo‘sh yoki takrorlangan.');
-    if (['attendance', 'adjustments', 'evaluations', 'leaveRequests', 'transfers'].includes(collection) && !userById.has(row.employeeId)) fail('Xodim topilmadi. Ro‘yxatni yangilang.');
+    if (['attendance', 'adjustments', 'evaluations', 'leaveRequests', 'advances', 'transfers'].includes(collection) && !userById.has(row.employeeId)) fail('Xodim topilmadi. Ro‘yxatni yangilang.');
     if (['attendance', 'adjustments', 'evaluations'].includes(collection) && !date(row.date)) fail('Sanani to‘g‘ri kiriting.');
     if (collection === 'attendance') {
       if (!['keldi', 'kelmadi', 'tatil', 'kasal'].includes(row.status)) fail('Davomat holati noto‘g‘ri.');
@@ -58,6 +58,14 @@ export function validateChanges(current, next, changes, session) {
       if (before && before.status !== 'kutilmoqda' && row.status !== before.status) fail('Bu so‘rov bo‘yicha qaror allaqachon saqlangan.');
       if (before && ['employeeId', 'from', 'to', 'type', 'reason'].some(key => before[key] !== row[key])) fail('Yuborilgan so‘rov matni va sanalarini o‘zgartirish mumkin emas.');
       if (!before && row.status !== 'kutilmoqda') fail('Yangi so‘rov kutilmoqda holatida yuboriladi.');
+    }
+    if (collection === 'advances') {
+      if (!money(row.amount) || row.amount <= 0 || !text(row.reason, 2000) || !['kutilmoqda', 'tasdiqlandi', 'radetildi'].includes(row.status)) fail('Avans summasi musbat va sababi kiritilgan bo‘lishi kerak.');
+      if (before && before.status !== 'kutilmoqda' && row.status !== before.status) fail('Bu so‘rov bo‘yicha qaror allaqachon saqlangan.');
+      if (before && ['employeeId', 'amount', 'reason'].some(key => before[key] !== row[key])) fail('Yuborilgan so‘rov summasi va sababini o‘zgartirish mumkin emas.');
+      if (!before && row.status !== 'kutilmoqda') fail('Yangi so‘rov kutilmoqda holatida yuboriladi.');
+      // Real money leaves the business here, so a request can move out of "kutilmoqda" only through boss/admin approval, never self-service.
+      if (before?.status === 'kutilmoqda' && row.status !== 'kutilmoqda' && session.role === 'employee') fail('Faqat boshliq yoki admin avans so‘rovini ko‘rib chiqishi mumkin.');
     }
     if (collection === 'transfers') {
       if (before) fail('Ko‘chirish tarixi o‘zgartirilmaydi. Yangi ko‘chirish yarating.');

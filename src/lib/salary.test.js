@@ -37,6 +37,22 @@ describe('Daily commission payroll', () => {
     expect(computeEmployeeReport(state, 'e', '2026-01').total).toBe(740000);
   });
 });
+describe('Salary advances', () => {
+  it('deducts an approved advance from the month it was decided in, not requested', () => {
+    const state = applySale(initial(), admin, sale);
+    state.advances = [{ employeeId: 'e', amount: 100000, status: 'tasdiqlandi', requestedAt: '2025-12-20T00:00:00.000Z', decidedAt: '2026-01-02T00:00:00.000Z' }];
+    expect(computeEmployeeReport(state, 'e', '2026-01').total).toBe(600000);
+    expect(computeEmployeeReport(state, 'e', '2025-12').total).toBe(0);
+  });
+  it('ignores pending or rejected advances', () => {
+    const state = applySale(initial(), admin, sale);
+    state.advances = [
+      { employeeId: 'e', amount: 100000, status: 'kutilmoqda', decidedAt: '2026-01-02T00:00:00.000Z' },
+      { employeeId: 'e', amount: 200000, status: 'radetildi', decidedAt: '2026-01-03T00:00:00.000Z' },
+    ];
+    expect(computeEmployeeReport(state, 'e', '2026-01').total).toBe(700000);
+  });
+});
 describe('Five-point evaluation', () => {
   it('uses five points for all criteria and the overall average', () => {
     expect(EVALUATION_CRITERIA.every(c => c.max === 5)).toBe(true);

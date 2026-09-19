@@ -7,6 +7,7 @@ import Branches from "./Branches.jsx";
 import Attendance from "./Attendance.jsx";
 import Adjustments from "./Adjustments.jsx";
 import Leaves from "./Leaves.jsx";
+import Advances from "./Advances.jsx";
 import Analytics from "./Analytics.jsx";
 import AuditLog from "./AuditLog.jsx";
 import Reports from "./Reports.jsx";
@@ -25,6 +26,7 @@ const TABS = [
   { id: "evaluations", label: "Ball baholash", icon: "⭐" },
   { id: "transfer", label: "Ko'chirish", icon: "↔️" },
   { id: "leaves", label: "Ta'til so'rovlari", icon: "🏖" },
+  { id: "advances", label: "Avans so'rovlari", icon: "💸" },
   { id: "analytics", label: "Analitika", icon: "📊" },
   { id: "reports", label: "Hisobotlar", icon: "📄" },
   { id: "audit", label: "Audit log", icon: "🛡" },
@@ -33,6 +35,7 @@ const TABS = [
 export default function BossDashboard({ state, persist, session, saveSale, salaryAction, deleteUser, firebaseMode }) {
   const [tab, setTab] = useState("overview");
   const pendingLeaves = state.leaveRequests.filter((r) => r.status === "kutilmoqda").length;
+  const pendingAdvances = (state.advances || []).filter((r) => r.status === "kutilmoqda").length;
 
   return (
     <div>
@@ -42,6 +45,9 @@ export default function BossDashboard({ state, persist, session, saveSale, salar
             {t.icon} {t.label}
             {t.id === "leaves" && pendingLeaves > 0 && (
               <span className="badge badge-yellow" style={{ marginLeft: 2 }}>{pendingLeaves}</span>
+            )}
+            {t.id === "advances" && pendingAdvances > 0 && (
+              <span className="badge badge-yellow" style={{ marginLeft: 2 }}>{pendingAdvances}</span>
             )}
           </button>
         ))}
@@ -56,6 +62,7 @@ export default function BossDashboard({ state, persist, session, saveSale, salar
       {tab === "evaluations" && <EvaluationPanel state={state} persist={persist} session={session} />}
       {tab === "transfer" && <EmployeeTransfer state={state} persist={persist} session={session} />}
       {tab === "leaves" && <Leaves state={state} persist={persist} session={session} />}
+      {tab === "advances" && <Advances state={state} persist={persist} session={session} />}
       {tab === "analytics" && <Analytics state={state} />}
       {tab === "reports" && <Reports state={state} persist={persist} session={session} />}
       {tab === "audit" && <AuditLog state={state} />}

@@ -29,6 +29,11 @@ export function computeEmployeeReport(state, employeeId, month) {
   const bonuses = adj.filter((a) => a.type === "bonus").reduce((s, a) => s + (Number(a.amount) || 0), 0);
   const fines = adj.filter((a) => a.type === "jarima").reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
+  const advanceRecords = (state.advances || []).filter(
+    (a) => a.employeeId === employeeId && a.status === "tasdiqlandi" && monthKey(a.decidedAt) === month
+  );
+  const advances = advanceRecords.reduce((s, a) => s + (Number(a.amount) || 0), 0);
+
   const saleRecords = (state.dailySales || []).filter(a => a.employeeId === employeeId && monthKey(a.date) === month);
   const salaryEntryRecords = (state.salaryEntries || []).filter(entry => entry.employeeId === employeeId && !entry.isDeleted && monthKey(entry.date) === month);
   const salaryEntryCommission = salaryEntryRecords.reduce((sum, entry) => sum + (Number(entry.calculatedAmount) || 0), 0);
@@ -57,7 +62,7 @@ export function computeEmployeeReport(state, employeeId, month) {
 
   // Entries are additive commission records; closing a cycle never adds them twice.
   base += salaryEntryCommission;
-  const total = base + bonuses - fines;
+  const total = base + bonuses - fines - advances;
   const evaluation = employeeEvaluationStats(state, employeeId, month);
 
   return {
@@ -69,6 +74,8 @@ export function computeEmployeeReport(state, employeeId, month) {
     totalHours,
     bonuses,
     fines,
+    advances,
+    advanceRecords,
     sales,
     saleRecords,
     salaryEntryRecords,
