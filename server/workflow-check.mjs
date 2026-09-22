@@ -51,6 +51,9 @@ try {
   const ownBranch = await call('/api/state', admin1.token);
   assert.ok(ownBranch.state.users.some(u => u.id === employee.id), 'new employee visible to existing admin session');
   assert.ok(!(await call('/api/state', admin2.token)).state.users.some(u => u.id === employee.id), 'other branch stays private');
+  const backup = await call('/api/backup', boss.token);
+  assert.ok(backup.users.some(u => u.passwordHash), 'backup includes real password hashes for disaster recovery');
+  await call('/api/backup', admin1.token, 'GET', undefined, 403);
   for (const phone of ['956604409', '+998 95 660-44-09', '998956604409']) assert.equal((await login(phone)).user.id, employee.id);
   await login('956604409', 'wrong-password', 401);
   let account = await login('956604409');

@@ -328,6 +328,15 @@ app.get('/api/state', authMiddleware, async (req, res) => {
   return sendState(req, res, { user: publicUser(user), state: publicState(current, user) });
 });
 
+// Boss-only, and deliberately the raw internal state (including password hashes) rather than
+// publicState — a backup that can't actually restore logins isn't a real disaster-recovery backup.
+app.get('/api/backup', authMiddleware, (req, res) => {
+  if (req.user.role !== 'boss') return res.status(403).json({ message: 'Faqat boshliq zaxira nusxa olishi mumkin.' });
+  const filename = `bbl-crm-zaxira-${todayISO()}.json`;
+  res.set('Content-Disposition', `attachment; filename="${filename}"`);
+  return sendState(req, res, store.get());
+});
+
 function sessionUser(state, identity) {
   const id = typeof identity === 'string' ? identity : identity.id;
   const user = state.users.find(item => item.id === id);

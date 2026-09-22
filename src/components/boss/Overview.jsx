@@ -1,9 +1,32 @@
 import ResponsiveTable from "../ResponsiveTable.jsx";
-import React from "react";
+import React, { useState } from "react";
 import { fmt, todayISO, monthKey } from "../../lib/utils.js";
 import { computeAllReports } from "../../lib/salary.js";
+import { request } from "../../lib/api.js";
 
 export default function Overview({ state }) {
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupMessage, setBackupMessage] = useState("");
+  const downloadBackup = async () => {
+    setBackupBusy(true); setBackupMessage("");
+    try {
+      const data = await request("/api/backup");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `bbl-crm-zaxira-${todayISO()}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setBackupMessage("Zaxira fayli yuklab olindi.");
+    } catch (error) {
+      setBackupMessage(error.message);
+    } finally {
+      setBackupBusy(false);
+    }
+  };
   const month = monthKey(todayISO());
   const reports = computeAllReports(state, month, "all");
   const today = todayISO();
@@ -89,6 +112,13 @@ export default function Overview({ state }) {
             {onLeave > 0 && <div className="insight-item">🏖 Bugun {onLeave} kishi dam olish/ta'tilda.</div>}
           </div>
         </div>
+      </div>
+
+      <div className="card card-pad section-gap">
+        <h3 className="section-title">💾 Zaxira nusxa</h3>
+        <p className="hint">Barcha xodimlar, davomat, maosh va boshqa ma'lumotlarni bitta faylga yuklab oling. Faylda maxfiy ma'lumot (parollarning shifrlangan nusxasi) bor — uni faqat o'zingizda, xavfsiz joyda saqlang.</p>
+        <button type="button" className="btn btn-primary" disabled={backupBusy} onClick={downloadBackup}>{backupBusy ? "Tayyorlanmoqda..." : "Zaxira nusxa olish"}</button>
+        {backupMessage && <p role="status" className="hint">{backupMessage}</p>}
       </div>
     </div>
   );
