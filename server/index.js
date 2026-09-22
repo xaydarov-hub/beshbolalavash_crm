@@ -149,7 +149,7 @@ function buildState() {
     sales: {},
     leaveRequests: [],
     advances: [],
-    auditLog: [{ id: uid(), at: new Date().toLocaleString('uz-UZ'), actor: 'System', action: 'CRM serveri ishga tushdi.' }],
+    auditLog: [{ id: uid(), at: new Date().toISOString(), actor: 'System', action: 'CRM serveri ishga tushdi.' }],
     notifications: [{ id: uid(), forRole: 'boss', text: 'Sistema ishga tushdi. Boshqaruv tayyor.', at: today, read: false }],
     evaluations: [],
     transfers: [],
